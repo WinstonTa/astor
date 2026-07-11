@@ -1,6 +1,7 @@
 // PERSON A — Prompt assembly
-// Merges base agent script + Commons facts + episodic memories + user prompt
+// Merges agent-specific system prompt + Commons facts + episodic memories + user prompt
 import { searchCommonsFacts, searchEpisodicMemories, getAgentBySlug } from './database.js';
+import { getAgentPrompt } from './agentPrompts.js';
 
 interface CompiledContext {
   systemPrompt: string;
@@ -10,7 +11,7 @@ interface CompiledContext {
 /**
  * Build the full LLM context for a run.
  *
- * 1. Load the agent's base system prompt (from tool_manifest or a default).
+ * 1. Load the agent's specific system prompt (from agentPrompts config).
  * 2. Semantic-search the user's Information Commons for relevant shared prefs.
  * 3. Semantic-search the user's episodic memory for this specific agent.
  * 4. Assemble everything into system + user messages.
@@ -24,9 +25,9 @@ export async function compileContext(params: {
 }): Promise<CompiledContext> {
   const { userId, agentId, agentSlug, userPrompt, queryEmbedding } = params;
 
-  // ── 1. Agent base prompt ──────────────────────────────────────────────
+  // ── 1. Agent-specific system prompt ──────────────────────────────────
   const agent = await getAgentBySlug(agentSlug);
-  const basePrompt = buildAgentSystemPrompt(agent);
+  const basePrompt = buildAgentSystemPrompt(agentSlug, agent);
 
   // ── 2. Information Commons (cross-agent shared context) ───────────────
   let commonsSection = '';
@@ -34,7 +35,7 @@ export async function compileContext(params: {
     const facts = await searchCommonsFacts(userId, queryEmbedding, 8);
     if (facts.length > 0) {
       const factLines = facts.map((f: any) => `- ${f.fact}`).join('\n');
-      commonsSection = `\n\n## User Preferences (Information Commons)\n${factLines}`;
+      commonsSection = `\n\n## User Preferences (Information Commons)\nThese are the user's saved preferences. Use them to personalize your recommendations.\n${factLines}`;
     }
   }
 
@@ -44,7 +45,7 @@ export async function compileContext(params: {
     const memories = await searchEpisodicMemories(userId, agentId, queryEmbedding, 5);
     if (memories.length > 0) {
       const memLines = memories.map((m: any) => `- ${m.summary}`).join('\n');
-      memorySection = `\n\n## Relevant Past Experiences\n${memLines}`;
+      memorySection = `\n\n## Relevant Past Experiences\nThese are memories from your previous interactions with this user. Learn from them.\n${memLines}`;
     }
   }
 
@@ -55,20 +56,27 @@ export async function compileContext(params: {
 }
 
 // ── Agent system prompt builder ───────────────────────────────────────────
-function buildAgentSystemPrompt(agent: any): string {
-  if (!agent) {
-    return 'You are a helpful AI assistant. You have access to browser automation tools to complete tasks on behalf of the user.';
+function buildAgentSystemPrompt(slug: string, agent: any): string {
+  // 1. Check for a detailed agent-specific prompt
+  const specificPrompt = getAgentPrompt(slug);
+  if (specificPrompt) {
+    return specificPrompt;
   }
 
-  const tools = agent.tool_manifest?.tools ?? [];
-  const toolList = tools.length > 0
-    ? `You have access to these tools: ${tools.join(', ')}.`
-    : '';
+  // 2. Fall back to a generic prompt built from DB metadata
+  if (agent) {
+    const tools = agent.tool_manifest?.tools ?? [];
+    const toolList = tools.length > 0
+      ? `You have access to these tools: ${tools.join(', ')}.`
+      : '';
 
-  return `You are ${agent.name}, an AI agent specialized in: ${agent.purpose}.
+    return `You are ${agent.name}, an AI agent specialized in: ${agent.purpose}.
 ${toolList}
 
-When you need to perform browser actions, use the browser_search and browser_book tools.
 Always explain what you are doing step by step.
 Before performing any transaction that involves spending money, you MUST request user confirmation — do not finalize purchases without explicit authorization.`;
+  }
+
+  // 3. Last resort — completely generic
+  return 'You are a helpful AI assistant. You have access to automation tools to complete tasks on behalf of the user. Always explain what you are doing step by step.';
 }
