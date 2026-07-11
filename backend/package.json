@@ -10,15 +10,18 @@
     "typecheck": "tsc --noEmit",
     "migrate": "tsx src/db/migrations/run.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "tools:local": "tsx src/tools/__mocks__/localRun.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@browserbasehq/sdk": "^2.15.0",
+    "@browserbasehq/stagehand": "^3.6.0",
     "express": "^4.21.0",
     "pg": "^8.13.0",
     "uuid": "^10.0.0",
     "dotenv": "^16.4.0",
-    "zod": "^3.23.0"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

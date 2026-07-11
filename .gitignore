@@ -4,3 +4,5 @@ dist/
 .agents/
 .claude/
 skills-lock.json
+claudeplans/
+.stagehand-cache/
