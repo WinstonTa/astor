@@ -3,13 +3,21 @@ import { TriangleAlert, X, Check } from "lucide-react";
 
 export function GuardrailModal({
   open,
+  runId,
+  payload,
   onCancel,
   onAuthorize,
 }: {
   open: boolean;
+  runId?: string | null;
+  payload?: { screenshotUrl?: string; confirmationCardData?: { title: string; cost: string } };
   onCancel: () => void;
   onAuthorize: () => void;
 }) {
+  const title = payload?.confirmationCardData?.title ?? "The Paramount Hotel Seattle";
+  const cost = payload?.confirmationCardData?.cost ?? "$185.00";
+  const displayRunId = runId ? runId.slice(0, 8) : "8f2a-hb-441";
+
   return (
     <AnimatePresence>
       {open && (
@@ -40,13 +48,13 @@ export function GuardrailModal({
 
               <p className="text-[13.5px] leading-relaxed text-[var(--color-bone-dim)]">
                 Agent is ready to book{" "}
-                <span className="text-[var(--color-bone)]">The Paramount Hotel Seattle</span> for{" "}
-                <span className="font-mono text-[var(--color-brass-bright)]">$185.00</span> using
+                <span className="text-[var(--color-bone)]">{title}</span> for{" "}
+                <span className="font-mono text-[var(--color-brass-bright)]">{cost}</span> using
                 your saved profile metadata.
               </p>
 
               <div className="flex items-center justify-between rounded-[10px] border border-[var(--color-hairline)] bg-black/20 px-3.5 py-2.5 font-mono text-[11px] text-[var(--color-bone-faint)]">
-                <span>run_id · 8f2a-hb-441</span>
+                <span>run_id · {displayRunId}</span>
                 <span className="text-[var(--color-amber-signal)]">AWAITING_CONFIRMATION</span>
               </div>
 
