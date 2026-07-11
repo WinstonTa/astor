@@ -75,17 +75,99 @@ const HOTEL_BOOKER_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
+// ── Grocery Runner tools ──────────────────────────────────────────────────
+const GROCERY_RUNNER_TOOLS: Anthropic.Tool[] = [
+  {
+    name: 'finalize_shopping_list',
+    description:
+      'Locks in the curated shopping list after the interview. Call this once you have enough information ' +
+      '(from the user, Information Commons, or episodic memory) to propose a complete list and the user has ' +
+      'approved it. This does NOT search any store yet — it only persists the list.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        items: {
+          type: 'array',
+          description: 'The finalized list of grocery items.',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Item name (e.g. "whole milk", "chicken breast")' },
+              quantity: { type: 'number', description: 'How many/much to buy (e.g. 2 for "2 gallons of milk")' },
+              unit: { type: 'string', description: 'Optional unit hint (e.g. "gallon", "lb", "count")' },
+              constraints: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Per-item constraints (e.g. "organic", "lactose-free", "store brand ok")',
+              },
+            },
+            required: ['name', 'quantity'],
+          },
+        },
+        budget: { type: 'number', description: 'Optional total budget in USD for the whole trip.' },
+      },
+      required: ['items'],
+    },
+  },
+  {
+    name: 'generate_grocery_report',
+    description:
+      'Generates the priced, illustrated grocery report for the finalized list. Walmart, Costco, and Whole ' +
+      'Foods have no public API, so there is no live price data — instead, estimate a realistic U.S. grocery ' +
+      'price and package size for each item from your own general knowledge, plus a short store recommendation ' +
+      'and a few related meal ideas. Call this only after finalize_shopping_list, and only once per shopping list.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        items: {
+          type: 'array',
+          description: 'One entry per finalized shopping-list item, enriched with an estimate.',
+          items: {
+            type: 'object',
+            properties: {
+              itemName: { type: 'string', description: 'Display title, e.g. "Canned Pinto Beans"' },
+              imageQuery: {
+                type: 'string',
+                description: 'Short, generic search term for a stock photo of this exact product, e.g. "canned pinto beans"',
+              },
+              estimatedPrice: { type: 'number', description: 'Realistic estimated U.S. price in USD, e.g. 1.99' },
+              sizeDisplay: { type: 'string', description: 'Typical package size/weight, e.g. "16 oz", "1 gal", "12 ct"' },
+            },
+            required: ['itemName', 'imageQuery', 'estimatedPrice'],
+          },
+        },
+        bestStores: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'General recommendation of which real-world chains suit this list best, e.g. ["Costco", "Walmart"]',
+        },
+        relatedMeals: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'A few related recipe ideas the user might also enjoy, e.g. ["Quesadillas", "Chalupas"]',
+        },
+        tripTheme: { type: 'string', description: 'Short headline for the trip, e.g. "Taco Night"' },
+        narrative: {
+          type: 'string',
+          description: 'One or two fun, first-person sentences summarizing the trip for a "fun facts" section.',
+        },
+      },
+      required: ['items', 'bestStores', 'relatedMeals'],
+    },
+  },
+];
+
 // ── Registry ──────────────────────────────────────────────────────────────
 // Add new agents here as they are developed. Shared tools can be referenced
 // from multiple agents (e.g. search_hotels is used by both hotel-booker and
 // travel-concierge).
 const REGISTRY: Record<string, Anthropic.Tool[]> = {
   'hotel-booker': HOTEL_BOOKER_TOOLS,
+  'grocery-runner': GROCERY_RUNNER_TOOLS,
 
   // Phase 4 — these will be populated when we scale to other agents
   // 'finance-ledger': FINANCE_LEDGER_TOOLS,
   // 'mom-scheduler': MOM_SCHEDULER_TOOLS,
-  // 'grocery-runner': GROCERY_RUNNER_TOOLS,
   // 'inbox-triage': INBOX_TRIAGE_TOOLS,
   // 'travel-concierge': [...TRAVEL_CONCILIARY_TOOLS, ...HOTEL_BOOKER_TOOLS],
 };

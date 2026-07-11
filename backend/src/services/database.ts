@@ -231,4 +231,29 @@ export async function upsertBrowserContext(
   return res.rows[0];
 }
 
+// ── Shopping Lists (grocery-runner) ──────────────────────────────────────
+export async function createShoppingList(
+  userId: string,
+  runId: string | undefined,
+  items: Array<{ name: string; quantity: number; unit?: string; constraints?: string[] }>,
+  budgetCents?: number,
+) {
+  const listRes = await pool.query(
+    `INSERT INTO shopping_lists (user_id, run_id, status, budget_cents)
+     VALUES ($1, $2, 'final', $3) RETURNING *`,
+    [userId, runId ?? null, budgetCents ?? null],
+  );
+  const list = listRes.rows[0];
+
+  for (const item of items) {
+    await pool.query(
+      `INSERT INTO shopping_list_items (list_id, name, quantity, unit, constraints)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [list.id, item.name, item.quantity, item.unit ?? null, JSON.stringify(item.constraints ?? [])],
+    );
+  }
+
+  return list;
+}
+
 export { pool };

@@ -1,6 +1,22 @@
 // SSE hook — streams ITelemetryFrame events from the backend
 import { useEffect, useRef, useState, useCallback } from "react";
 
+export interface IGroceryReportItem {
+  itemName: string;
+  imageUrl: string;
+  estimatedPriceDisplay: string;
+  sizeDisplay?: string;
+}
+
+export interface IGroceryReport {
+  tripTheme?: string;
+  items: IGroceryReportItem[];
+  estimatedTotalDisplay: string;
+  bestStores: string[];
+  relatedMeals: string[];
+  narrative?: string;
+}
+
 export interface ITelemetryFrame {
   type: "thinking" | "tool_start" | "viewport_update" | "action_required" | "complete" | "agent_message";
   message: string;
@@ -12,6 +28,7 @@ export interface ITelemetryFrame {
       title: string;
       cost: string;
     };
+    groceryReport?: IGroceryReport;
   };
 }
 

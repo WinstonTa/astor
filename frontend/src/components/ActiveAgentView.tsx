@@ -4,6 +4,7 @@ import type { Agent } from "../data/agents";
 import { StatusRing } from "./StatusRing";
 import { TelemetryStatusBar } from "./TelemetryStatusBar";
 import { ViewportPanel } from "./ViewportPanel";
+import { GroceryReportView } from "./GroceryReportView";
 import { FloatingAgentChat } from "./FloatingAgentChat";
 import { useRunStream } from "../lib/useRunStream";
 import { startRun, confirmRun, replyToAgent } from "../lib/api";
@@ -15,7 +16,7 @@ const DEFAULT_PROMPTS: Record<string, string> = {
   "hotel-booker": "Book a hotel in Seattle under $200 for next weekend",
   "finance-ledger": "Show my spending summary for this month",
   "mom-scheduler": "Schedule a dentist appointment for next Tuesday",
-  "grocery-runner": "Order my weekly groceries from Whole Foods",
+  "grocery-runner": "Help me build a grocery list for taco night",
   "inbox-triage": "Triage my inbox and flag anything urgent",
   "travel-concierge": "Plan a 3-day trip to Portland under $1500",
 };
@@ -163,16 +164,26 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
 
       {/* ── Content area ─────────────────────────────────────────────── */}
       {isRunning ? (
-        /* Full-screen browser viewport when running */
-        <div className="relative flex-1">
-          <ViewportPanel
-            screenshotUrl={[...events].reverse().find((e) => e.payload?.screenshotUrl)?.payload?.screenshotUrl}
-            liveViewUrl={events.find((e) => e.payload?.liveViewUrl)?.payload?.liveViewUrl}
-            frozen={isTerminal}
-            fullScreen
-          />
+        /* Full-screen viewport when running — a live browser for browser-driven
+           agents, or the generated report webpage for grocery-runner (no live
+           browser exists for it: Walmart/Costco/Whole Foods have no public API
+           and reliably block automated scraping). */
+        <div className="relative min-h-0 flex-1">
+          {agent.slug === "grocery-runner" ? (
+            <GroceryReportView
+              report={[...events].reverse().find((e) => e.payload?.groceryReport)?.payload?.groceryReport ?? null}
+              runId={runId}
+            />
+          ) : (
+            <ViewportPanel
+              screenshotUrl={[...events].reverse().find((e) => e.payload?.screenshotUrl)?.payload?.screenshotUrl}
+              liveViewUrl={[...events].reverse().find((e) => e.payload?.liveViewUrl)?.payload?.liveViewUrl}
+              frozen={isTerminal}
+              fullScreen
+            />
+          )}
 
-          {/* Non-blocking terminal control — keeps the live browser visible */}
+          {/* Non-blocking terminal control — keeps the live browser/report visible */}
           {isTerminal && (
             <div className="absolute left-1/2 top-4 z-20 -translate-x-1/2">
               <button

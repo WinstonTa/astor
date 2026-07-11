@@ -177,6 +177,35 @@ export async function continueWithToolResult(params: {
 
 // ── Result formatter ──────────────────────────────────────────────────────
 export function formatToolResult(toolName: string, result: IToolExecutionResult): string {
+  // ── Grocery Runner ─────────────────────────────────────────────────────
+  if (toolName === 'finalize_shopping_list') {
+    return result.status === 'SUCCESS'
+      ? 'Shopping list finalized and saved. Now call generate_grocery_report with your best price/size/image estimate for each item.'
+      : `Tool "${toolName}" failed: ${result.errorMessage ?? 'Unknown error'}`;
+  }
+
+  if (result.status === 'SUCCESS' && result.groceryReport) {
+    const { items, estimatedTotalDisplay, bestStores, relatedMeals, tripTheme } = result.groceryReport;
+    const rows = items.map(
+      (i) => `| ${i.itemName} | ${i.estimatedPriceDisplay} | ${i.sizeDisplay ?? '—'} |`,
+    );
+    return [
+      `Tool "${toolName}" generated the grocery report${tripTheme ? ` for "${tripTheme}"` : ''}:`,
+      '',
+      '| Item | Est. Price | Size |',
+      '|---|---|---|',
+      ...rows,
+      '',
+      `Estimated total: ${estimatedTotalDisplay}`,
+      `Best stores for this list: ${bestStores.join(', ')}`,
+      `Related meals to explore: ${relatedMeals.join(', ')}`,
+      '',
+      'Present this table to the user, mention the estimated total, the best-store suggestion, and the related meal',
+      'ideas. Tell them a visual report page has also been generated that they can view, save as an HTML file, or',
+      'download as an image. This is the end of the run — do not ask "anything else?" or any other question.',
+    ].join('\n');
+  }
+
   // Search returned a ranked list — hand the whole list to the LLM so IT presents
   // the choices and recommends the single best, then calls book_hotel.
   if (result.status === 'SUCCESS' && result.options && result.options.length > 0) {

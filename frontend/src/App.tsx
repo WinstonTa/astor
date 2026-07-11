@@ -65,7 +65,7 @@ export default function App() {
       </div>
       <div className="grain-field" />
       <Sidebar active={activeAgentId ? "grid" : view} onNavigate={handleNavigate} />
-      <main className="relative z-10 flex min-w-0 flex-1 flex-col">
+      <main className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col">
         <AnimatePresence mode="wait">
           {activeAgent ? (
             <motion.div
@@ -74,7 +74,7 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="flex h-full flex-col"
+              className="flex h-full min-h-0 flex-col"
             >
               <ActiveAgentView agent={activeAgent} onBack={handleBack} />
             </motion.div>
@@ -85,7 +85,7 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="flex h-full flex-col"
+              className="flex h-full min-h-0 flex-col"
             >
               <CommonsView />
             </motion.div>
@@ -96,7 +96,7 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="flex h-full flex-col"
+              className="flex h-full min-h-0 flex-col"
             >
               <SecuritySettings />
             </motion.div>
@@ -107,7 +107,7 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="flex h-full flex-col"
+              className="flex h-full min-h-0 flex-col"
             >
               <MarketplaceGrid agents={agents} onOpen={handleOpenAgent} />
             </motion.div>

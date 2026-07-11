@@ -20,6 +20,37 @@ const FRAME_TONE: Record<ITelemetryFrame["type"], string> = {
   agent_message: "var(--color-phosphor)",
 };
 
+/**
+ * This is a single-line truncated status pill, not a place to render block
+ * markdown (headers/tables) — but a `complete` frame's message is the LLM's
+ * own text, which is often full of markdown syntax (the grocery report table,
+ * bold text, etc). Strip that syntax down to clean plain text instead of
+ * showing literal `**`/`#`/`\n` characters.
+ */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\r\n/g, "\n")
+    // Line-anchored patterns (headers, bullets, blockquotes, hr) MUST run
+    // before newlines are collapsed — `^`/`$` need real line boundaries to
+    // match against, so collapsing first (the original bug here) silently
+    // no-ops every one of these.
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+[.)]\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/^\s*([-*_])\1{2,}\s*$/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/_(.*?)_/g, "$1")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\|/g, " ")
+    .replace(/\n+/g, " ")
+    .replace(/(?:-{2,}\s*){2,}/g, " ") // leftover table-separator dashes
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 export function TelemetryStatusBar({ events }: { events: ITelemetryFrame[] }) {
   const [dots, setDots] = useState("");
 
@@ -63,7 +94,7 @@ export function TelemetryStatusBar({ events }: { events: ITelemetryFrame[] }) {
         className="max-w-[420px] truncate font-mono text-[11px] tracking-wide"
         style={{ color: isFailed ? "var(--color-coral-signal)" : tone }}
       >
-        {last.message}{!isDone && !isFailed ? dots : ""}
+        {stripMarkdown(last.message)}{!isDone && !isFailed ? dots : ""}
       </span>
       {events.length > 1 && (
         <span className="ml-1 font-mono text-[9px] text-bone-faint/40">

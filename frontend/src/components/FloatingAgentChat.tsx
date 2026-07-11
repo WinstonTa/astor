@@ -159,18 +159,20 @@ export function FloatingAgentChat({
               {/* Terminal status banner */}
               {statusBanner && (
                 <div
-                  className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-[12px] ${
+                  className={`flex items-start gap-2 rounded-xl border px-3 py-2.5 text-[12px] ${
                     statusBanner.kind === "success"
                       ? "border-phosphor/25 bg-phosphor/5 text-bone"
                       : "border-coral-signal/25 bg-coral-signal/5 text-bone"
                   }`}
                 >
                   {statusBanner.kind === "success" ? (
-                    <CircleCheck size={15} className="shrink-0 text-[var(--color-phosphor)]" />
+                    <CircleCheck size={15} className="mt-0.5 shrink-0 text-[var(--color-phosphor)]" />
                   ) : (
-                    <XCircle size={15} className="shrink-0 text-[var(--color-coral-signal)]" />
+                    <XCircle size={15} className="mt-0.5 shrink-0 text-[var(--color-coral-signal)]" />
                   )}
-                  <span className="leading-snug">{statusBanner.message}</span>
+                  <div className="min-w-0 flex-1">
+                    <Markdown>{statusBanner.message}</Markdown>
+                  </div>
                 </div>
               )}
 

@@ -1,7 +1,7 @@
 // PERSON A — Run lifecycle state machine
 // QUEUED → HYDRATING → THINKING → EXECUTING_TOOL → AWAITING_CONFIRMATION → AWAITING_USER_INPUT → FINALIZING → COMPLETE | FAILED | CANCELLED
 import type { ITelemetryFrame } from '../contracts/streamContract.js';
-import type { IBrowserToolInvocation } from '../contracts/toolContract.js';
+import type { IBrowserToolInvocation, IToolExecutionResult, IShoppingListItem } from '../contracts/toolContract.js';
 import type { IRunHooks } from '../contracts/runHooks.js';
 import { compileContext } from './contextCompiler.js';
 import { think, formatToolResult } from './llmClient.js';
@@ -16,6 +16,7 @@ import {
 import { getToolsForAgent } from './toolRegistry.js';
 // Day 5 handshake: swapped from mockToolExecutor → Person B's real Browserbase runtime
 import { executeBrowserTask, closeBrowserSession } from '../tools/browserCore.js';
+import { finalizeShoppingList, generateGroceryReport, type GenerateReportInput } from '../tools/grocery/groceryCore.js';
 
 type RunStatus =
   | 'QUEUED' | 'HYDRATING' | 'THINKING' | 'EXECUTING_TOOL'
@@ -81,9 +82,10 @@ export async function startRun(runId: string): Promise<void> {
 
     // We pause for user input on real questions (an upfront clarifying question, or
     // "which of these hotels should I book?" after a search) — but NOT after a
-    // booking is already confirmed, where a courtesy "Anything else?" would
-    // otherwise hang the run forever in AWAITING_USER_INPUT.
-    let bookedHotel: { entityName: string; priceDisplay: string } | undefined;
+    // booking/report is already delivered, where a courtesy "Anything else?" would
+    // otherwise hang the run forever in AWAITING_USER_INPUT. Generalized across
+    // agents: hotel-booker sets tag 'BOOKED', grocery-runner sets tag 'REPORT'.
+    let committedOutcome: { tag: string; summary: string } | undefined;
 
     // ── Tool-calling loop ──────────────────────────────────────────
     while (true) {
@@ -93,22 +95,12 @@ export async function startRun(runId: string): Promise<void> {
         // ── EXECUTING_TOOL ───────────────────────────────────────────
         await transition(runId, 'EXECUTING_TOOL', `Executing tool: ${decision.toolName}...`, hooks);
 
-        // Map LLM tool call to Person B's IBrowserToolInvocation.
-        // book_hotel → mode 'book' (guardrail + checkout); everything else searches only.
-        const isBooking = decision.toolName === 'book_hotel';
         const toolName = decision.toolName!;
         agentLog(runId, `🔧 TOOL \x1b[1m${toolName}\x1b[0m ${JSON.stringify(decision.toolInput ?? {})}`);
-        const invocation: IBrowserToolInvocation = {
-          runId,
-          targetUrl: TOOL_TARGETS[toolName] ?? 'https://www.booking.com',
-          browserbaseContextId: '',
-          mode: isBooking ? 'book' : 'search',
-          searchParameters: extractSearchParameters(decision.toolInput),
-        };
 
         // Persist the assistant's tool call to the conversation so later turns
-        // (after the user picks a hotel) still remember what was searched/found —
-        // otherwise the LLM loses the results and wrongly re-runs search_hotels.
+        // (after the user picks an option) still remember what was searched/found —
+        // otherwise the LLM loses the results and wrongly re-runs the search tool.
         const toolCallId = `call_${Date.now()}`;
         messages.push({
           role: 'assistant',
@@ -120,26 +112,53 @@ export async function startRun(runId: string): Promise<void> {
           }],
         });
 
-        // Person B's executeBrowserTask handles guardrails internally:
-        // expediaMacro.ts calls requestAuthorization() which emits action_required
-        // and waits for resolveAuthorization() via POST /api/agent/confirm
-        const result = await executeBrowserTask(invocation, hooks);
+        let result: IToolExecutionResult;
 
-        // Persist the tool result too (the hotel list / booking outcome).
+        if (agent.slug === 'grocery-runner') {
+          result = await executeGroceryTool(toolName, decision.toolInput ?? {}, run.user_id, runId, hooks);
+          // There is no purchase or checkout in this design (no store APIs to buy
+          // through) — the report itself is the deliverable, so it commits the run
+          // the moment it's generated, same as a confirmed hotel booking.
+          if (toolName === 'generate_grocery_report' && result.status === 'SUCCESS' && result.groceryReport) {
+            const { tripTheme, items, estimatedTotalDisplay } = result.groceryReport;
+            committedOutcome = {
+              tag: 'REPORT',
+              summary: `${tripTheme ?? 'Grocery trip'}: ${items.length} item(s), est. ${estimatedTotalDisplay}.`,
+            };
+          }
+        } else {
+          // Map LLM tool call to Person B's IBrowserToolInvocation.
+          // book_hotel → mode 'book' (guardrail + checkout); everything else searches only.
+          const isBooking = toolName === 'book_hotel';
+          const invocation: IBrowserToolInvocation = {
+            runId,
+            targetUrl: TOOL_TARGETS[toolName] ?? 'https://www.booking.com',
+            browserbaseContextId: '',
+            mode: isBooking ? 'book' : 'search',
+            searchParameters: extractSearchParameters(decision.toolInput),
+          };
+
+          // Person B's executeBrowserTask handles guardrails internally:
+          // expediaMacro.ts calls requestAuthorization() which emits action_required
+          // and waits for resolveAuthorization() via POST /api/agent/confirm
+          result = await executeBrowserTask(invocation, hooks);
+
+          // Record a confirmed booking so it becomes a durable episodic memory
+          // ("this hotel is booked by the user").
+          if (isBooking && result.status === 'SUCCESS' && result.scrapedData) {
+            committedOutcome = {
+              tag: 'BOOKED',
+              summary: `${result.scrapedData.entityName} (${result.scrapedData.priceDisplay}) — confirmed and authorized by the user.`,
+            };
+          }
+        }
+
+        // Persist the tool result too (the option list / booking-order outcome).
         messages.push({
           role: 'tool',
           content: formatToolResult(toolName, result),
           tool_call_id: toolCallId,
         });
-
-        // Record a confirmed booking so it becomes a durable episodic memory
-        // ("this hotel is booked by the user").
-        if (isBooking && result.status === 'SUCCESS' && result.scrapedData) {
-          bookedHotel = {
-            entityName: result.scrapedData.entityName,
-            priceDisplay: result.scrapedData.priceDisplay,
-          };
-        }
 
         if (result.status === 'FAILED') {
           return await fail(runId, result.errorMessage ?? 'Tool execution failed.', hooks);
@@ -166,12 +185,13 @@ export async function startRun(runId: string): Promise<void> {
         });
         await insertRunEvent(runId, 'agent_message', agentText);
 
-        // A question before a booking is real (clarify request, or "which hotel?"
-        // after a search) → wait for the user. After the booking is confirmed, a
-        // question-shaped closing is courtesy → complete instead of hanging.
+        // A question before a booking/order is real (clarify request, or "which
+        // hotel?"/"which store?" after a search) → wait for the user. After the
+        // outcome is confirmed, a question-shaped closing is courtesy → complete
+        // instead of hanging.
         const looksLikeQuestion = agentText.includes('?') ||
           /^(what|when|where|which|how|do you|are you|can you|would you|should)/i.test(agentText);
-        const isQuestion = looksLikeQuestion && !bookedHotel;
+        const isQuestion = looksLikeQuestion && !committedOutcome;
 
         if (isQuestion) {
           // Wait for user input
@@ -204,9 +224,10 @@ export async function startRun(runId: string): Promise<void> {
     // ── FINALIZING ──────────────────────────────────────────────────
     await transition(runId, 'FINALIZING', 'Saving episodic memory...', hooks);
 
-    // Prefix a durable booking marker so the memory is unmistakable on recall.
-    const assistantResponse = bookedHotel
-      ? `BOOKED: ${bookedHotel.entityName} (${bookedHotel.priceDisplay}) — confirmed and authorized by the user.\n\n${decision.text ?? ''}`
+    // Prefix a durable outcome marker so the memory is unmistakable on recall
+    // ("BOOKED:" for hotel-booker, "ORDERED:" for grocery-runner).
+    const assistantResponse = committedOutcome
+      ? `${committedOutcome.tag}: ${committedOutcome.summary}\n\n${decision.text ?? ''}`
       : decision.text ?? '';
 
     await writeMemory({
@@ -218,7 +239,7 @@ export async function startRun(runId: string): Promise<void> {
     });
 
     // ── COMPLETE ────────────────────────────────────────────────────
-    if (bookedHotel) agentLog(runId, `\x1b[32m🏨 BOOKED\x1b[0m ${bookedHotel.entityName} (${bookedHotel.priceDisplay})`);
+    if (committedOutcome) agentLog(runId, `\x1b[32m✓ ${committedOutcome.tag}\x1b[0m ${committedOutcome.summary}`);
     agentLog(runId, `\x1b[32m\x1b[1m■ RUN COMPLETE\x1b[0m`);
     await transition(runId, 'COMPLETE', decision.text ?? 'Task completed successfully.', hooks);
 
@@ -227,12 +248,57 @@ export async function startRun(runId: string): Promise<void> {
     const hooks = createRunHooks(runId);
     await fail(runId, err.message ?? 'Unknown error', hooks);
   } finally {
-    // Close the run's Browserbase session. The frontend has already frozen the
-    // final captured frame (e.g. the booked hotel page) on terminal, so the panel
-    // shows that instead of the live view going white. (P3)
+    // Close the hotel run's Browserbase session, if one was opened. The frontend
+    // has already frozen the final captured frame (e.g. the booked hotel page) on
+    // terminal, so the panel shows that instead of the live view going white. (P3)
+    // No-op for a run that never opened a browser session (e.g. grocery-runner,
+    // which has no live browser at all — see claudeplans grocery architecture doc).
     await closeBrowserSession(runId).catch((e) => console.error(`closeBrowserSession(${runId}):`, e));
     activeRuns.delete(runId);
   }
+}
+
+/**
+ * Dispatches a grocery-runner tool call to groceryCore.ts. Kept separate from
+ * the hotel-booker's IBrowserToolInvocation path — grocery tools don't share
+ * that hotel-shaped invocation contract at all (see claudeplans grocery
+ * architecture doc §3.3/§3.4).
+ */
+async function executeGroceryTool(
+  toolName: string,
+  input: Record<string, unknown>,
+  userId: string,
+  runId: string,
+  hooks: IRunHooks,
+): Promise<IToolExecutionResult> {
+  if (toolName === 'finalize_shopping_list') {
+    const items: IShoppingListItem[] = ((input.items as any[]) ?? []).map((i) => ({
+      name: String(i.name),
+      quantity: Number(i.quantity ?? 1),
+      unit: i.unit ? String(i.unit) : undefined,
+      constraints: Array.isArray(i.constraints) ? i.constraints.map(String) : [],
+    }));
+    const budgetCents = typeof input.budget === 'number' ? Math.round(input.budget * 100) : undefined;
+    return finalizeShoppingList(userId, runId, items, budgetCents);
+  }
+
+  if (toolName === 'generate_grocery_report') {
+    const reportInput: GenerateReportInput = {
+      items: ((input.items as any[]) ?? []).map((i) => ({
+        itemName: String(i.itemName),
+        imageQuery: String(i.imageQuery ?? i.itemName ?? ''),
+        estimatedPrice: Number(i.estimatedPrice ?? 0),
+        sizeDisplay: i.sizeDisplay ? String(i.sizeDisplay) : undefined,
+      })),
+      bestStores: Array.isArray(input.bestStores) ? input.bestStores.map(String) : [],
+      relatedMeals: Array.isArray(input.relatedMeals) ? input.relatedMeals.map(String) : [],
+      tripTheme: input.tripTheme ? String(input.tripTheme) : undefined,
+      narrative: input.narrative ? String(input.narrative) : undefined,
+    };
+    return generateGroceryReport(reportInput, hooks);
+  }
+
+  return { status: 'FAILED', errorMessage: `Unknown grocery tool: ${toolName}` };
 }
 
 /**
