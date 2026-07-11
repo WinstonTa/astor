@@ -76,7 +76,8 @@ CREATE TABLE IF NOT EXISTS browser_contexts (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   site TEXT NOT NULL,
   browserbase_context_id TEXT NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, site)
 );
 
 -- Indexes for vector similarity search
