@@ -7,15 +7,22 @@ import {
   ChevronsRight,
 } from "lucide-react";
 
-const NAV_ITEMS = [
-  { id: "grid", label: "Marketplace Grid", sub: "Agent app repository", icon: LayoutGrid },
-  { id: "commons", label: "Information Commons", sub: "Shared preferences", icon: BookOpenText },
-  { id: "security", label: "Security Settings", sub: "Guardrail policy", icon: ShieldCheck },
-] as const;
+export type ViewId = "grid" | "commons" | "security";
 
-export function Sidebar() {
+const NAV_ITEMS = [
+  { id: "grid" as ViewId, label: "Marketplace Grid", sub: "Agent app repository", icon: LayoutGrid },
+  { id: "commons" as ViewId, label: "Information Commons", sub: "Shared preferences", icon: BookOpenText },
+  { id: "security" as ViewId, label: "Security Settings", sub: "Guardrail policy", icon: ShieldCheck },
+];
+
+export function Sidebar({
+  active,
+  onNavigate,
+}: {
+  active: ViewId;
+  onNavigate: (id: ViewId) => void;
+}) {
   const [collapsed, setCollapsed] = useState(false);
-  const [active, setActive] = useState<string>("grid");
 
   return (
     <aside
@@ -46,7 +53,7 @@ export function Sidebar() {
           return (
             <button
               key={item.id}
-              onClick={() => setActive(item.id)}
+              onClick={() => onNavigate(item.id)}
               title={collapsed ? item.label : undefined}
               className={`group relative flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition-colors ${
                 isActive

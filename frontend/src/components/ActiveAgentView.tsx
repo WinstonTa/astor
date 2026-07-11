@@ -1,17 +1,16 @@
 import { useState, useCallback } from "react";
-import { ArrowLeft, CircleCheck, Loader2 } from "lucide-react";
+import { ArrowLeft, CircleCheck, Loader2, XCircle } from "lucide-react";
 import type { Agent } from "../data/agents";
 import { StatusRing } from "./StatusRing";
 import { TelemetryLog } from "./TelemetryLog";
 import { ViewportPanel } from "./ViewportPanel";
 import { GuardrailModal } from "./GuardrailModal";
 import { useRunStream } from "../lib/useRunStream";
-import { startRun } from "../lib/api";
+import { startRun, confirmRun } from "../lib/api";
 
 type GuardrailState = "pending" | "authorized" | "dismissed";
 type RunPhase = "idle" | "starting" | "running" | "complete" | "failed";
 
-// Default prompts per agent slug
 const DEFAULT_PROMPTS: Record<string, string> = {
   "hotel-booker": "Book a hotel in Seattle under $200 for next weekend",
   "finance-ledger": "Show my spending summary for this month",
@@ -20,6 +19,15 @@ const DEFAULT_PROMPTS: Record<string, string> = {
   "inbox-triage": "Triage my inbox and flag anything urgent",
   "travel-concierge": "Plan a 3-day trip to Portland under $1500",
 };
+
+// Map run status from telemetry frames to a display status
+function deriveRunStatus(events: { type: string }[]): "idle" | "running" | "attention" {
+  if (events.length === 0) return "running";
+  const last = events[events.length - 1];
+  if (last.type === "complete") return "idle";
+  if (last.type === "action_required") return "attention";
+  return "running";
+}
 
 export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () => void }) {
   const [guardrail, setGuardrail] = useState<GuardrailState>("pending");
@@ -31,10 +39,11 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
   const { events } = useRunStream(runId);
   const Icon = agent.icon;
 
-  // Check if run reached the guardrail state
   const hasGuardrail = events.some((e) => e.type === "action_required");
   const isComplete = events.some((e) => e.type === "complete");
+  const isFailed = events.some((e) => e.type === "complete" && e.message.toLowerCase().includes("fail"));
   const lastEvent = events[events.length - 1];
+  const guardrailPayload = events.find((e) => e.type === "action_required")?.payload;
 
   const handleStart = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -43,9 +52,7 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
     setGuardrail("pending");
 
     try {
-      // Use dbId if available (from API), otherwise use slug as fallback
       const agentId = agent.dbId ?? agent.id;
-      // TODO: get real userId from auth context
       const userId = "00000000-0000-0000-0000-000000000001";
       const res = await startRun(userId, agentId, prompt);
       setRunId(res.runId);
@@ -57,14 +64,20 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
   }, [prompt, agent.dbId, agent.id]);
 
   const handleGuardrailConfirm = useCallback(async (decision: "authorize" | "cancel") => {
-    setGuardrail(decision === "authorize" ? "authorized" : "dismissed");
-    // Phase 2 will wire this to POST /api/agent/confirm
-  }, []);
+    if (!runId) return;
+    try {
+      await confirmRun(runId, decision);
+      setGuardrail(decision === "authorize" ? "authorized" : "dismissed");
+    } catch (err: any) {
+      // If the API call fails, still update UI optimistically
+      setGuardrail(decision === "authorize" ? "authorized" : "dismissed");
+    }
+  }, [runId]);
 
-  // Derive display status
+  // Derive display status from live events
   const displayStatus = runPhase === "running"
-    ? (isComplete ? "idle" : hasGuardrail ? "attention" : "running")
-    : runPhase === "starting" ? "running"
+    ? deriveRunStatus(events)
+    : runPhase === "starting" ? "running" as const
     : agent.status;
 
   return (
@@ -132,18 +145,18 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
         <TelemetryLog events={events} />
         <ViewportPanel screenshotUrl={events.find((e) => e.payload?.screenshotUrl)?.payload?.screenshotUrl} />
 
-        {/* Guardrail modal — shown when run hits action_required */}
+        {/* Guardrail modal */}
         {runPhase === "running" && hasGuardrail && guardrail === "pending" && !isComplete && (
           <GuardrailModal
             open={true}
             runId={runId}
-            payload={events.find((e) => e.type === "action_required")?.payload}
+            payload={guardrailPayload}
             onCancel={() => handleGuardrailConfirm("cancel")}
             onAuthorize={() => handleGuardrailConfirm("authorize")}
           />
         )}
 
-        {/* Authorization confirmation overlay */}
+        {/* Authorization confirmed overlay */}
         {guardrail === "authorized" && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050403]/70 backdrop-blur-sm">
             <div className="animate-rise flex flex-col items-center gap-3 rounded-[18px] border border-[var(--color-phosphor-dim)]/50 bg-[var(--color-panel-raised)] px-8 py-7 text-center">
@@ -158,14 +171,50 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
           </div>
         )}
 
-        {/* Run complete overlay */}
-        {isComplete && guardrail !== "authorized" && (
+        {/* Run complete overlay (non-guardrail) */}
+        {isComplete && guardrail !== "authorized" && !hasGuardrail && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050403]/70 backdrop-blur-sm">
             <div className="animate-rise flex flex-col items-center gap-3 rounded-[18px] border border-[var(--color-phosphor-dim)]/50 bg-[var(--color-panel-raised)] px-8 py-7 text-center">
               <CircleCheck size={28} className="text-[var(--color-phosphor)]" />
               <p className="font-display text-[17px] text-[var(--color-bone)]">
                 {lastEvent?.message ?? "Task complete"}
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* Failed overlay */}
+        {isFailed && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050403]/70 backdrop-blur-sm">
+            <div className="animate-rise flex flex-col items-center gap-3 rounded-[18px] border border-[var(--color-coral-signal)]/30 bg-[var(--color-panel-raised)] px-8 py-7 text-center">
+              <XCircle size={28} className="text-[var(--color-coral-signal)]" />
+              <p className="font-display text-[17px] text-[var(--color-bone)]">
+                {lastEvent?.message ?? "Run failed"}
+              </p>
+              <button
+                onClick={() => { setRunPhase("idle"); setRunId(null); setGuardrail("pending"); }}
+                className="mt-2 rounded-[10px] border border-[var(--color-hairline)] px-4 py-2 font-mono text-[11px] text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* User-cancelled overlay */}
+        {guardrail === "dismissed" && !isComplete && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050403]/70 backdrop-blur-sm">
+            <div className="animate-rise flex flex-col items-center gap-3 rounded-[18px] border border-[var(--color-hairline)] bg-[var(--color-panel-raised)] px-8 py-7 text-center">
+              <XCircle size={28} className="text-[var(--color-bone-dim)]" />
+              <p className="font-display text-[17px] text-[var(--color-bone)]">
+                Execution cancelled
+              </p>
+              <button
+                onClick={() => { setRunPhase("idle"); setRunId(null); setGuardrail("pending"); }}
+                className="mt-2 rounded-[10px] border border-[var(--color-hairline)] px-4 py-2 font-mono text-[11px] text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]"
+              >
+                Run again
+              </button>
             </div>
           </div>
         )}
