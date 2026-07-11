@@ -176,12 +176,33 @@ export async function continueWithToolResult(params: {
 }
 
 // ── Result formatter ──────────────────────────────────────────────────────
-function formatToolResult(toolName: string, result: IToolExecutionResult): string {
+export function formatToolResult(toolName: string, result: IToolExecutionResult): string {
+  // Search returned a ranked list — hand the whole list to the LLM so IT presents
+  // the choices and recommends the single best, then calls book_hotel.
+  if (result.status === 'SUCCESS' && result.options && result.options.length > 0) {
+    const top = result.options.slice(0, 6);
+    const lines = top.map(
+      (o, i) => `${i + 1}. ${o.entityName} — ${o.priceDisplay} — ${o.summaryDetails}`,
+    );
+    return [
+      `Tool "${toolName}" found ${result.options.length} hotels (showing top ${top.length}, best first):`,
+      '',
+      ...lines,
+      '',
+      'Present these options to the user, recommend the SINGLE best match for their',
+      'budget and preferences with a one-line reason, then ask them to confirm.',
+      '',
+      'IMPORTANT: These results are now in your context — do NOT call search_hotels',
+      'again. When the user confirms, call book_hotel with the exact hotelName and',
+      'price from the list above.',
+    ].join('\n');
+  }
+
   if (result.status === 'SUCCESS' && result.scrapedData) {
     return [
       `Tool "${toolName}" completed successfully.`,
       '',
-      'Results:',
+      'Booked:',
       `- Name: ${result.scrapedData.entityName}`,
       `- Price: ${result.scrapedData.priceDisplay}`,
       `- Details: ${result.scrapedData.summaryDetails}`,

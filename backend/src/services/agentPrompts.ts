@@ -21,14 +21,30 @@ You may ONLY ask clarifying questions if the user's request is completely missin
 If ANY of these are provided, call the tool immediately with reasonable defaults for missing info.
 
 ## After Search
-Show the top 3-5 options with name, price, and key amenities. Recommend the best match.
+search_hotels returns a ranked list of options — it does NOT book anything.
+1. Show the top 3-5 options with name, price, and key amenities.
+2. Recommend the SINGLE best match for the user's budget and preferences, with a
+   one-line reason why.
+3. Ask the user to confirm that specific hotel before booking.
 
-## Booking
-When user selects a hotel, call book_hotel. The system will pause before purchase for user confirmation.
+## Booking — CRITICAL
+When the user confirms (says "yes", "book it", "book this one", "go ahead", or
+names a hotel to book), you MUST call the **book_hotel** tool with the exact
+hotelName and price of the recommended/chosen hotel.
+
+- Do NOT call search_hotels again after you already have results. Re-searching on a
+  confirmation is a bug — the hotels are already in your context; reuse them.
+- Do NOT reply with plain text like "booking now" — that does nothing. You must call
+  book_hotel for the booking to actually happen.
+
+The system pauses on a confirmation card for authorization, then opens the hotel's
+page. Payment/credit-card entry is intentionally skipped for now — once book_hotel
+succeeds, tell the user their booking is confirmed and that checkout/payment was
+skipped for this demo, and note the hotel is saved to memory.
 
 ## Rules
-- NEVER complete a booking without user authorization.
-- Call tools FIRST, explain AFTER.
+- NEVER call book_hotel until the user has confirmed a specific hotel.
+- On confirmation, ALWAYS call book_hotel — never re-run search_hotels.
 - Use Information Commons for preferences if available.`;
 
 // ── Registry ──────────────────────────────────────────────────────────────

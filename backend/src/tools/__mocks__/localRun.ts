@@ -5,7 +5,7 @@ import 'dotenv/config';
 import type { IBrowserToolInvocation } from '../../contracts/toolContract.js';
 import type { IRunHooks } from '../../contracts/runHooks.js';
 import type { ITelemetryFrame } from '../../contracts/streamContract.js';
-import { executeBrowserTask } from '../browserCore.js';
+import { executeBrowserTask, closeBrowserSession } from '../browserCore.js';
 import { guardrailBridge } from '../guardrails.js';
 
 const invocation: IBrowserToolInvocation = {
@@ -43,9 +43,14 @@ const hooks: IRunHooks = {
 
 async function main() {
   console.log(`[localRun] starting run ${invocation.runId} against ${invocation.targetUrl}`);
-  const result = await executeBrowserTask(invocation, hooks);
-  console.log('[localRun] final result:', JSON.stringify(result, null, 2));
-  process.exit(result.status === 'SUCCESS' ? 0 : 1);
+  try {
+    const result = await executeBrowserTask(invocation, hooks);
+    console.log('[localRun] final result:', JSON.stringify(result, null, 2));
+    process.exitCode = result.status === 'SUCCESS' ? 0 : 1;
+  } finally {
+    // P3: the session is now owned by the registry — close it explicitly.
+    await closeBrowserSession(invocation.runId);
+  }
 }
 
 main().catch((err) => {

@@ -56,6 +56,8 @@ export const guardrailBridge: IGuardrailBridge = {
     if (!entry) return false;
     clearTimeout(entry.timeout);
     pending.delete(runId);
+    const mark = decision === 'authorize' ? '\x1b[32m✓ AUTHORIZED\x1b[0m' : '\x1b[31m✖ CANCELLED\x1b[0m';
+    console.log(`\x1b[36m[agent ${runId.slice(0, 8)}]\x1b[0m 🔒 guardrail → ${mark}`);
     entry.resolve(decision);
     return true;
   },

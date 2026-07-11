@@ -5,6 +5,9 @@ export interface ITelemetryFrame {
   timestamp: string;
   payload?: {
     screenshotUrl?: string;
+    // Browserbase Session Live View — interactive iframe URL for real-time
+    // viewing/control of the cloud browser. Additive optional field.
+    liveViewUrl?: string;
     confirmationCardData?: {
       title: string;
       cost: string;

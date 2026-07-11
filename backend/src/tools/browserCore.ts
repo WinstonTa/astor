@@ -37,7 +37,14 @@ export async function createSession(contextId: string | undefined): Promise<Stag
   //
   // Override with STAGEHAND_MODEL env var if you want to use a different vision model
   // (e.g. 'claude-3.5-sonnet' or 'gpt-4o-mini' for lower cost).
-  const stagehandModel = process.env.STAGEHAND_MODEL ?? 'gpt-4o';
+  // NOTE: Stagehand requires "provider/model" format, and DigitalOcean's gateway
+  // serves provider-prefixed ids (e.g. 'anthropic-claude-4.5-sonnet'). The
+  // anthropic provider is the only one whose wire format the DO gateway
+  // implements to spec: 'openai/...' routes to /v1/responses, which the gateway
+  // serves with non-spec field shapes that the AI SDK rejects ("Invalid JSON
+  // response"), and openai-compatible providers use json_object mode, which
+  // errors unless prompts contain the word "json".
+  const stagehandModel = process.env.STAGEHAND_MODEL ?? 'anthropic/anthropic-claude-4.5-sonnet';
 
   const useBrowserbase = Boolean(process.env.BROWSERBASE_API_KEY);
 
@@ -74,19 +81,51 @@ export async function createSession(contextId: string | undefined): Promise<Stag
   return stagehand;
 }
 
+/**
+ * Fetch the Browserbase Session Live View URL — a fully interactive, real-time
+ * view of the cloud browser that can be embedded in an iframe. Unlike the
+ * screenshot loop, the operator can click/type through it (dismiss popups,
+ * complete logins, solve CAPTCHAs) while the agent works.
+ */
+export async function getLiveViewUrl(sessionId: string): Promise<string | undefined> {
+  try {
+    const client = new Browserbase({ apiKey: process.env.BROWSERBASE_API_KEY });
+    const debug = await client.sessions.debug(sessionId);
+    return debug.debuggerFullscreenUrl;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function teardownSession(stagehand: Stagehand): Promise<void> {
   await stagehand.close();
 }
 
-/**
- * The frozen entrypoint Person A's orchestrator will eventually call. Owns the full
- * session lifecycle around a single run: hydrate → navigate/act/extract (expediaMacro)
- * → guardrail pause → teardown, always emitting telemetry via the injected hooks.
- */
-export async function executeBrowserTask(
+// ── Per-run session registry (P3) ─────────────────────────────────────────
+// One Browserbase session is opened on the first tool call of a run and kept
+// alive across subsequent calls (search → book) and until the run finalizes.
+// This keeps the live view connected the whole time (no mid-flow white-out),
+// preserves cookies/popups-dismissed state, and lets book mode resume in the
+// same session instead of paying for a fresh spawn.
+interface SessionEntry {
+  stagehand: Stagehand;
+  stopScreenshots: () => void;
+}
+const sessions = new Map<string, SessionEntry>();
+
+async function getOrCreateSession(
   invocation: IBrowserToolInvocation,
   hooks: IRunHooks,
-): Promise<IToolExecutionResult> {
+): Promise<Stagehand> {
+  // Safety: a new run supersedes any leftover session so only one live browser
+  // exists at a time (the orchestrator normally closes each run's session already).
+  for (const otherId of [...sessions.keys()]) {
+    if (otherId !== invocation.runId) await closeBrowserSession(otherId);
+  }
+
+  const existing = sessions.get(invocation.runId);
+  if (existing) return existing.stagehand;
+
   hooks.onFrame({
     type: 'thinking',
     message: 'Hydrating Browserbase session...',
@@ -102,9 +141,37 @@ export async function executeBrowserTask(
     timestamp: new Date().toISOString(),
   });
 
+  // Surface the Browserbase Live View so the operator can watch — and interact
+  // with — the real browser (dismiss popups, solve CAPTCHAs).
+  if (stagehand.browserbaseSessionID) {
+    const liveViewUrl = await getLiveViewUrl(stagehand.browserbaseSessionID);
+    if (liveViewUrl) {
+      hooks.onFrame({
+        type: 'tool_start',
+        message: 'Live browser view available',
+        timestamp: new Date().toISOString(),
+        payload: { liveViewUrl },
+      });
+    }
+  }
+
   const page = await stagehand.context.awaitActivePage();
   const stopScreenshots = startScreenshotLoop(page, hooks);
+  sessions.set(invocation.runId, { stagehand, stopScreenshots });
+  return stagehand;
+}
 
+/**
+ * The frozen entrypoint the orchestrator calls per tool invocation. Reuses the
+ * run's live Browserbase session (opening one on first use). The session is NOT
+ * torn down here — the orchestrator calls closeBrowserSession() when the whole
+ * run finalizes.
+ */
+export async function executeBrowserTask(
+  invocation: IBrowserToolInvocation,
+  hooks: IRunHooks,
+): Promise<IToolExecutionResult> {
+  const stagehand = await getOrCreateSession(invocation, hooks);
   try {
     return await runSearchAndCheckout(stagehand, invocation, hooks);
   } catch (err) {
@@ -112,8 +179,17 @@ export async function executeBrowserTask(
       status: 'FAILED',
       errorMessage: err instanceof Error ? err.message : String(err),
     };
-  } finally {
-    stopScreenshots();
-    await teardownSession(stagehand);
   }
+}
+
+/**
+ * Tear down a run's Browserbase session immediately. Safe to call for runs that
+ * never opened a session.
+ */
+export async function closeBrowserSession(runId: string): Promise<void> {
+  const entry = sessions.get(runId);
+  if (!entry) return;
+  sessions.delete(runId);
+  try { entry.stopScreenshots(); } catch { /* already stopped */ }
+  try { await teardownSession(entry.stagehand); } catch { /* already closed */ }
 }
