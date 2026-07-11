@@ -13,6 +13,7 @@ import {
   insertRunEvent,
   getAgentById,
 } from './database.js';
+import { getToolsForAgent } from './toolRegistry.js';
 // Day 1: use mock. Day 5 swap to: import { executeBrowserTask } from '../tools/browserCore.js';
 import { executeBrowserTask } from './mockToolExecutor.js';
 
@@ -45,6 +46,7 @@ export async function startRun(runId: string): Promise<void> {
     if (!agent) throw new Error(`Agent ${run.agent_id} not found`);
 
     const hooks = createRunHooks(runId);
+    const tools = getToolsForAgent(agent.slug);
 
     // ── HYDRATING ────────────────────────────────────────────────────
     await transition(runId, 'HYDRATING', 'Hydrating context from Information Commons and episodic memory...', hooks);
@@ -62,7 +64,7 @@ export async function startRun(runId: string): Promise<void> {
     if (abortController.aborted) return await cancel(runId, hooks);
 
     const messages: any[] = [{ role: 'user', content: run.prompt }];
-    let decision = await think({ systemPrompt: context.systemPrompt, messages });
+    let decision = await think({ systemPrompt: context.systemPrompt, messages, tools });
 
     // ── Tool-calling loop ──────────────────────────────────────────
     while (decision.type === 'tool_call') {
@@ -106,6 +108,7 @@ export async function startRun(runId: string): Promise<void> {
         messages,
         toolName: decision.toolName!,
         toolResult: result,
+        tools,
       });
     }
 
