@@ -22,11 +22,20 @@ CREATE TABLE IF NOT EXISTS agents (
 );
 
 -- Run tracking
-CREATE TYPE run_status AS ENUM (
-  'QUEUED', 'HYDRATING', 'THINKING', 'EXECUTING_TOOL',
-  'AWAITING_CONFIRMATION', 'AWAITING_USER_INPUT', 'FINALIZING',
-  'COMPLETE', 'FAILED', 'CANCELLED'
-);
+-- CREATE TYPE has no IF NOT EXISTS, and unlike the tables/inserts below this
+-- makes the whole migration file fail atomically (and non-idempotently) on
+-- any re-run against a DB that already has it — which is exactly how the
+-- flight-booker seed row below silently never got applied after being added
+-- to this file. Guard it explicitly so re-running this migration is safe.
+DO $$ BEGIN
+  CREATE TYPE run_status AS ENUM (
+    'QUEUED', 'HYDRATING', 'THINKING', 'EXECUTING_TOOL',
+    'AWAITING_CONFIRMATION', 'AWAITING_USER_INPUT', 'FINALIZING',
+    'COMPLETE', 'FAILED', 'CANCELLED'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS runs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -99,6 +108,7 @@ ON CONFLICT (id) DO NOTHING;
 -- Seed agents
 INSERT INTO agents (slug, name, purpose, tool_manifest) VALUES
   ('hotel-booker', 'Hotel Booker', 'Search and book hotels at the best price', '{"tools": ["browser_search", "browser_book"]}'),
+  ('flight-booker', 'Flight Booker', 'Search and book flights at the best price', '{"tools": ["browser_search", "browser_book"]}'),
   ('finance-ledger', 'Finance Ledger', 'Track expenses and manage budgets', '{"tools": ["spreadsheet", "api_query"]}'),
   ('mom-scheduler', 'Mom Scheduler', 'Manage family schedules and reminders', '{"tools": ["calendar", "notification"]}'),
   ('grocery-runner', 'Grocery Runner', 'Order groceries at the best deals', '{"tools": ["browser_search", "browser_order"]}'),

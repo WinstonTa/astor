@@ -7,6 +7,8 @@ import Browserbase from '@browserbasehq/sdk';
 import type { IBrowserToolInvocation, IToolExecutionResult } from '../contracts/toolContract.js';
 import type { IRunHooks } from '../contracts/runHooks.js';
 import { runSearchAndCheckout } from './expediaMacro.js';
+import { runFlightSearchAndCheckout } from './flightMacro.js';
+import { runPlaywrightHotelSearch } from './hotelMacroPlaywright.js';
 import { startScreenshotLoop } from './screenshotter.js';
 
 /**
@@ -35,15 +37,21 @@ export async function createSession(contextId: string | undefined): Promise<Stag
   // interpret screenshots. GPT-4o has native vision support and is the recommended
   // model for Stagehand browser automation.
   //
-  // Override with STAGEHAND_MODEL env var if you want to use a different vision model
-  // (e.g. 'claude-3.5-sonnet' or 'gpt-4o-mini' for lower cost).
+  // Override with STAGEHAND_MODEL env var if you want to use a different vision model.
   // NOTE: Stagehand requires "provider/model" format, and DigitalOcean's gateway
-  // serves provider-prefixed ids (e.g. 'anthropic-claude-4.5-sonnet'). The
-  // anthropic provider is the only one whose wire format the DO gateway
-  // implements to spec: 'openai/...' routes to /v1/responses, which the gateway
-  // serves with non-spec field shapes that the AI SDK rejects ("Invalid JSON
-  // response"), and openai-compatible providers use json_object mode, which
-  // errors unless prompts contain the word "json".
+  // serves provider-prefixed ids (e.g. 'anthropic-claude-4.5-sonnet', 'openai-gpt-4o-mini').
+  // The AI SDK's plain `openai/` provider prefix routes to /v1/responses, which the DO
+  // gateway serves with a non-spec `error` field shape that fails AI SDK's Zod validation
+  // ("Invalid JSON response") — confirmed via a standalone generateText() repro against
+  // this gateway. `anthropic/` is spec-compliant and works directly.
+  //
+  // To still use an OpenAI-family model (e.g. gpt-4o-mini, cheaper/faster than Sonnet),
+  // route it through the `groq/` provider prefix instead — groq's AI SDK client hits
+  // /chat/completions (not /responses), and DO's gateway only looks at the model id
+  // after the slash, so `groq/openai-gpt-4o-mini` actually calls DO's openai-gpt-4o-mini.
+  // Verified end-to-end against this gateway: vision (image input), generateObject
+  // (Stagehand's extract() schema mode — defaults to response_format: json_schema, so it
+  // does NOT need "json" in the prompt), and tool-calling (act()) all work through this route.
   const stagehandModel = process.env.STAGEHAND_MODEL ?? 'anthropic/anthropic-claude-4.5-sonnet';
 
   const useBrowserbase = Boolean(process.env.BROWSERBASE_API_KEY);
@@ -166,14 +174,32 @@ async function getOrCreateSession(
  * run's live Browserbase session (opening one on first use). The session is NOT
  * torn down here — the orchestrator calls closeBrowserSession() when the whole
  * run finalizes.
+ *
+ * @param macro - which site-specific macro to run: 'hotel' (default) or 'flight'
  */
 export async function executeBrowserTask(
   invocation: IBrowserToolInvocation,
   hooks: IRunHooks,
+  macro: 'hotel' | 'flight' = 'hotel',
 ): Promise<IToolExecutionResult> {
   const stagehand = await getOrCreateSession(invocation, hooks);
   try {
-    return await runSearchAndCheckout(stagehand, invocation, hooks);
+    // Use pure Playwright macro for hotel searches (5-10x faster, no LLM calls per click)
+    // Fall back to Stagehand macro for flights or if Playwright macro fails
+    if (macro === 'hotel') {
+      try {
+        return await runPlaywrightHotelSearch(stagehand, invocation, hooks);
+      } catch {
+        // Playwright macro failed — fall back to Stagehand macro
+        hooks.onFrame({
+          type: 'thinking',
+          message: 'Playwright macro failed, falling back to Stagehand...',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+    const handler = macro === 'flight' ? runFlightSearchAndCheckout : runSearchAndCheckout;
+    return await handler(stagehand, invocation, hooks);
   } catch (err) {
     return {
       status: 'FAILED',

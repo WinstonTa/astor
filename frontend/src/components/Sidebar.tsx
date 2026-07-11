@@ -10,9 +10,9 @@ import {
 export type ViewId = "grid" | "commons" | "security";
 
 const NAV_ITEMS = [
-  { id: "grid" as ViewId, label: "Marketplace Grid", sub: "Agent app repository", icon: LayoutGrid },
-  { id: "commons" as ViewId, label: "Information Commons", sub: "Shared preferences", icon: BookOpenText },
-  { id: "security" as ViewId, label: "Security Settings", sub: "Guardrail policy", icon: ShieldCheck },
+  { id: "grid" as ViewId, label: "Marketplace", sub: "Agent repository", icon: LayoutGrid },
+  { id: "commons" as ViewId, label: "Commons", sub: "Shared preferences", icon: BookOpenText },
+  { id: "security" as ViewId, label: "Security", sub: "Guardrail policy", icon: ShieldCheck },
 ];
 
 export function Sidebar({
@@ -30,33 +30,25 @@ export function Sidebar({
         collapsed ? "w-[76px]" : "w-[248px]"
       }`}
     >
-      {/* Ambient top glow — subtle brass halo behind logo */}
-      <div className="pointer-events-none absolute top-0 left-0 h-40 w-full overflow-hidden">
-        <div
-          className="absolute top-[-60px] left-1/2 h-[160px] w-[200px] -translate-x-1/2 rounded-full opacity-30 blur-[60px]"
-          style={{ background: "radial-gradient(circle, rgba(204, 154, 78, 0.35), transparent 70%)" }}
-        />
-      </div>
-
       {/* Logo */}
       <div className="relative flex items-center gap-3 px-5 py-6">
-        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-primary/30 bg-gradient-to-br from-primary to-[var(--color-brass-dim)] font-display text-lg font-medium text-primary-foreground shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),0_0_12px_rgba(204,154,78,0.15)]">
+        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-brass/20 bg-gradient-to-br from-brass/80 to-brass-dim font-serif text-lg font-medium italic text-primary-foreground shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]">
           A
         </div>
         {!collapsed && (
           <div className="animate-rise overflow-hidden">
-            <p className="whitespace-nowrap font-display text-[17px] leading-none text-foreground">
+            <p className="whitespace-nowrap font-serif text-[17px] leading-none font-medium italic text-foreground">
               Astor
             </p>
-            <p className="whitespace-nowrap font-mono text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
+            <p className="whitespace-nowrap font-mono text-[10px] tracking-[0.16em] text-bone-faint/60 uppercase">
               Agent Deck
             </p>
           </div>
         )}
       </div>
 
-      {/* Brass separator */}
-      <div className="mx-4 h-px bg-gradient-to-r from-transparent via-brass/15 to-transparent" />
+      {/* Separator */}
+      <div className="mx-4 h-px bg-gradient-to-r from-transparent via-border/30 to-transparent" />
 
       {/* Nav */}
       <nav className="mt-4 flex flex-1 flex-col gap-1 px-3">
@@ -70,28 +62,28 @@ export function Sidebar({
               title={collapsed ? item.label : undefined}
               className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-200 ${
                 isActive
-                  ? "glass-panel border border-brass/10 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_20px_rgba(204,154,78,0.06)]"
-                  : "text-muted-foreground hover:bg-white/[0.03] hover:text-foreground"
+                  ? "glass-panel border border-brass/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                  : "hover:bg-white/[0.02]"
               }`}
             >
               {isActive && (
-                <span className="absolute top-1/2 left-0 h-5 w-[2px] -translate-y-1/2 rounded-full bg-gradient-to-b from-brass to-brass-dim" />
+                <span className="absolute top-1/2 left-0 h-5 w-[2px] -translate-y-1/2 rounded-full bg-gradient-to-b from-brass/80 to-brass-dim/60" />
               )}
               <div
                 className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-200 ${
                   isActive
-                    ? "bg-brass/10 text-primary"
-                    : "text-muted-foreground group-hover:text-foreground"
+                    ? "text-brass"
+                    : "text-bone-faint/50 group-hover:text-bone-dim"
                 }`}
               >
                 <Icon size={16} strokeWidth={1.75} />
               </div>
               {!collapsed && (
                 <span className="flex flex-col overflow-hidden whitespace-nowrap">
-                  <span className={`text-[13px] leading-tight transition-colors ${isActive ? "text-foreground" : ""}`}>
+                  <span className={`font-serif text-[13px] leading-tight font-medium italic transition-colors ${isActive ? "text-bone" : "text-bone-dim/70 group-hover:text-bone-dim"}`}>
                     {item.label}
                   </span>
-                  <span className={`font-mono text-[10px] leading-tight transition-colors ${isActive ? "text-brass/60" : "text-muted-foreground/60"}`}>
+                  <span className={`font-mono text-[10px] leading-tight transition-colors ${isActive ? "text-brass/50" : "text-bone-faint/40"}`}>
                     {item.sub}
                   </span>
                 </span>
@@ -103,10 +95,10 @@ export function Sidebar({
 
       {/* Bottom section */}
       <div className="mt-auto px-3 pb-5">
-        <div className="mb-3 h-px bg-gradient-to-r from-transparent via-hairline-strong to-transparent" />
+        <div className="mb-3 h-px bg-gradient-to-r from-transparent via-border/30 to-transparent" />
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className="btn-secondary-glass flex w-full items-center justify-center gap-2 rounded-xl border border-border/30 py-2 text-muted-foreground transition-all duration-200 hover:border-brass/20 hover:text-foreground"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-border/20 py-2 text-bone-faint/50 transition-all duration-200 hover:border-border/30 hover:text-bone-dim"
         >
           {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
         </button>

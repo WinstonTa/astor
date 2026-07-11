@@ -6,6 +6,7 @@ import runRoutes from './routes/runRoutes.js';
 import streamRoutes from './routes/streamRoutes.js';
 import confirmRoutes from './routes/confirmRoutes.js';
 import commonsRoutes from './routes/commonsRoutes.js';
+import chatRoutes from './routes/chatRoutes.js';
 import { startHeartbeat, stopHeartbeat } from './services/sseManager.js';
 import { getAllAgents } from './services/database.js';
 
@@ -43,6 +44,7 @@ app.use('/api/agent', runRoutes);
 app.use('/api/agent', streamRoutes);
 app.use('/api/agent', confirmRoutes);
 app.use('/api/commons', commonsRoutes);
+app.use('/api', chatRoutes);
 
 // ── Start ─────────────────────────────────────────────────────────────────
 startHeartbeat();

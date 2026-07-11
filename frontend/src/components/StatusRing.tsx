@@ -1,9 +1,10 @@
 import type { AgentStatus } from "../data/agents";
 
+// Muted, realistic status colors that complement the new palette
 const STATUS_META: Record<AgentStatus, { color: string; bg: string; label: string }> = {
-  idle: { color: "#7dffb0", bg: "rgba(125, 255, 176, 0.08)", label: "IDLE" },
-  running: { color: "#f5a623", bg: "rgba(245, 166, 35, 0.08)", label: "RUNNING" },
-  attention: { color: "#ff5c4d", bg: "rgba(255, 92, 77, 0.08)", label: "ATTENTION" },
+  idle: { color: "#8bbd8e", bg: "rgba(139, 189, 142, 0.06)", label: "IDLE" },
+  running: { color: "#c9956b", bg: "rgba(201, 149, 107, 0.08)", label: "RUNNING" },
+  attention: { color: "#c48f7a", bg: "rgba(196, 143, 122, 0.08)", label: "ATTENTION" },
 };
 
 export function StatusRing({ status }: { status: AgentStatus }) {
@@ -13,7 +14,7 @@ export function StatusRing({ status }: { status: AgentStatus }) {
       className="flex items-center gap-1.5 rounded-full px-2 py-1"
       style={{
         backgroundColor: meta.bg,
-        border: `1px solid ${meta.color}18`,
+        border: `1px solid ${meta.color}15`,
       }}
     >
       <span className="relative flex h-1.5 w-1.5">

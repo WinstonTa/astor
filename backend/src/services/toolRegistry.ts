@@ -3,6 +3,78 @@
 // Each agent gets the tools it needs. The LLM client loads them dynamically.
 import type Anthropic from '@anthropic-ai/sdk';
 
+// ── Flight Booker tools ───────────────────────────────────────────────────
+const FLIGHT_BOOKER_TOOLS: Anthropic.Tool[] = [
+  {
+    name: 'search_flights',
+    description:
+      'Search for flights from an origin to a destination. Returns a list of matching flights with airlines, prices, stops, and durations. The "location" param is the ORIGIN city; the DESTINATION must go in the preferences array as "destination:<city>".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        location: {
+          type: 'string',
+          description: 'The DEPARTURE/origin city or airport — NOT the destination. Example: "Seattle" or "SFO"',
+        },
+        checkIn: {
+          type: 'string',
+          description: 'Departure date in YYYY-MM-DD format',
+        },
+        checkOut: {
+          type: 'string',
+          description: 'Return date in YYYY-MM-DD format (omit for one-way)',
+        },
+        maxBudget: {
+          type: 'number',
+          description: 'Maximum ticket price in USD',
+        },
+        preferences: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Flight preferences. IMPORTANT: the destination city MUST be included here as "destination:<city>" (e.g. "destination:New York"). Also encode passengers as "passengers:<n>" and cabin class as "cabin:<economy|business|first>". Other strings are airline or time preferences.',
+        },
+      },
+      required: ['location', 'maxBudget'],
+    },
+  },
+  {
+    name: 'book_flight',
+    description:
+      'Book a specific flight. This action involves spending money and REQUIRES user confirmation before finalizing. Pass the flight name as "hotelName" and the price as "price" (these fields are repurposed from the shared tool schema).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        hotelName: {
+          type: 'string',
+          description: 'The flight to book — use the exact airline + flight number from search results (e.g. "United Airlines — UA 241")',
+        },
+        price: {
+          type: 'string',
+          description: 'Ticket price per person (e.g. "$312")',
+        },
+        totalPrice: {
+          type: 'string',
+          description: 'Total cost for all passengers (e.g. "$624 for 2 passengers")',
+        },
+        checkIn: {
+          type: 'string',
+          description: 'Departure date in YYYY-MM-DD format',
+        },
+        checkOut: {
+          type: 'string',
+          description: 'Return date in YYYY-MM-DD format (omit for one-way)',
+        },
+        roomType: {
+          type: 'string',
+          description: 'Cabin class selected (e.g. "Economy", "Business", "First")',
+        },
+      },
+      required: ['hotelName', 'price'],
+    },
+  },
+];
+
 // ── Hotel Booker tools ────────────────────────────────────────────────────
 const HOTEL_BOOKER_TOOLS: Anthropic.Tool[] = [
   {
@@ -164,6 +236,7 @@ const GROCERY_RUNNER_TOOLS: Anthropic.Tool[] = [
 const REGISTRY: Record<string, Anthropic.Tool[]> = {
   'hotel-booker': HOTEL_BOOKER_TOOLS,
   'grocery-runner': GROCERY_RUNNER_TOOLS,
+  'flight-booker': FLIGHT_BOOKER_TOOLS,
 
   // Phase 4 — these will be populated when we scale to other agents
   // 'finance-ledger': FINANCE_LEDGER_TOOLS,

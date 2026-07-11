@@ -42,6 +42,13 @@ export function startRun(userId: string, agentId: string, prompt: string): Promi
   });
 }
 
+export function startChat(userId: string, message: string): Promise<{ runId: string; agent: ApiAgent; confidence: number }> {
+  return request("/api/chat", {
+    method: "POST",
+    body: JSON.stringify({ userId, message }),
+  });
+}
+
 export function confirmRun(runId: string, decision: "authorize" | "cancel"): Promise<{ ok: boolean }> {
   return request("/api/agent/confirm", {
     method: "POST",

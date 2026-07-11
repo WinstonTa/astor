@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { ArrowLeft, CircleCheck, XCircle } from "lucide-react";
+import { ArrowLeft, CircleCheck, XCircle, Zap } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import type { Agent } from "../data/agents";
 import { StatusRing } from "./StatusRing";
 import { TelemetryStatusBar } from "./TelemetryStatusBar";
@@ -13,12 +14,13 @@ type GuardrailState = "pending" | "authorized" | "dismissed";
 type RunPhase = "idle" | "starting" | "running" | "complete" | "failed";
 
 const DEFAULT_PROMPTS: Record<string, string> = {
-  "hotel-booker": "Book a hotel in Seattle under $200 for next weekend",
-  "finance-ledger": "Show my spending summary for this month",
-  "mom-scheduler": "Schedule a dentist appointment for next Tuesday",
-  "grocery-runner": "Help me build a grocery list for taco night",
-  "inbox-triage": "Triage my inbox and flag anything urgent",
-  "travel-concierge": "Plan a 3-day trip to Portland under $1500",
+  "hotel-booker": "Book a hotel in downtown Seattle. Check-in July 18, check-out July 20, 2 adults, 1 room, budget under $200 per night. I prefer free cancellation. Go ahead and search now — no questions needed.",
+  "flight-booker": "Find a one-way flight from Seattle to New York on July 18, 1 adult, economy class, budget under $400. Go ahead and search now — no questions needed.",
+  "finance-ledger": "How much did I spend on dining and subscriptions this month?",
+  "mom-scheduler": "Book a dentist appointment for next Tuesday afternoon",
+  "grocery-runner": "Restock milk, eggs, bread, and chicken from Whole Foods",
+  "inbox-triage": "Show me the 5 most urgent unread emails I haven't replied to",
+  "travel-concierge": "Plan a 3-day weekend trip to Portland, Oregon — flights and hotel under $1500",
 };
 
 function deriveRunStatus(events: { type: string }[]): "idle" | "running" | "attention" {
@@ -29,16 +31,24 @@ function deriveRunStatus(events: { type: string }[]): "idle" | "running" | "atte
   return "running";
 }
 
-export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () => void }) {
+export function ActiveAgentView({ agent, onBack, initialRunId }: { agent: Agent; onBack: () => void; initialRunId?: string | null }) {
   const [guardrail, setGuardrail] = useState<GuardrailState>("pending");
-  const [runPhase, setRunPhase] = useState<RunPhase>("idle");
-  const [runId, setRunId] = useState<string | null>(null);
+  const [runPhase, setRunPhase] = useState<RunPhase>(initialRunId ? "running" : "idle");
+  const [runId, setRunId] = useState<string | null>(initialRunId ?? null);
   const [prompt, setPrompt] = useState(DEFAULT_PROMPTS[agent.slug] ?? "");
   const [error, setError] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<Array<{ role: "user" | "agent"; message: string }>>([]);
+  const [showRoutingBadge, setShowRoutingBadge] = useState(!!initialRunId);
 
   const { events } = useRunStream(runId);
   const Icon = agent.icon;
+
+  // Auto-hide routing badge after 3 seconds
+  useEffect(() => {
+    if (!showRoutingBadge) return;
+    const timer = setTimeout(() => setShowRoutingBadge(false), 3000);
+    return () => clearTimeout(timer);
+  }, [showRoutingBadge]);
 
   const isComplete = events.some((e) => e.type === "complete");
   const isFailed = events.some((e) => e.type === "complete" && e.message.toLowerCase().includes("fail"));
@@ -124,6 +134,31 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
 
   return (
     <div className="relative flex h-full flex-1 flex-col overflow-hidden">
+      {/* ── Routing badge (auto-fades) ───────────────────────────────── */}
+      <AnimatePresence>
+        {showRoutingBadge && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute left-1/2 top-16 z-40 -translate-x-1/2"
+          >
+            <div className="flex items-center gap-2.5 rounded-full border border-brass/20 bg-obsidian/80 px-4 py-2 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
+              <div
+                className="flex h-6 w-6 items-center justify-center rounded-full"
+                style={{ backgroundColor: `${agent.accent}18` }}
+              >
+                <Zap size={12} strokeWidth={2} style={{ color: agent.accent }} />
+              </div>
+              <span className="font-mono text-[11px] text-bone/80">
+                Using <span className="font-medium text-bone">{agent.name}</span>
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Header (compact, always visible) ─────────────────────────── */}
       <div className="relative z-30 flex items-center justify-between border-b border-border/20 bg-obsidian/60 px-5 py-3 backdrop-blur-xl">
         <div className="flex items-center gap-3">
@@ -187,7 +222,7 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
           {isTerminal && (
             <div className="absolute left-1/2 top-4 z-20 -translate-x-1/2">
               <button
-                onClick={() => { setRunPhase("idle"); setRunId(null); setGuardrail("pending"); setChatHistory([]); processedAgentCount.current = 0; }}
+                onClick={() => { setRunPhase("idle"); setRunId(null); setGuardrail("pending"); setChatHistory([]); processedAgentCount.current = 0; setShowRoutingBadge(false); }}
                 className="btn-secondary-glass flex items-center gap-2 rounded-full border border-border/40 bg-obsidian/70 px-4 py-2 font-mono text-[11px] text-[var(--color-bone-dim)] backdrop-blur-md transition-colors hover:border-brass/25 hover:text-[var(--color-bone)]"
               >
                 {isFailed || guardrail === "dismissed" ? <XCircle size={13} /> : <CircleCheck size={13} className="text-[var(--color-phosphor)]" />}

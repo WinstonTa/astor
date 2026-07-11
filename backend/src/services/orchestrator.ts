@@ -41,6 +41,8 @@ const USER_INPUT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 const TOOL_TARGETS: Record<string, string> = {
   search_hotels: 'https://www.booking.com',
   book_hotel: 'https://www.booking.com',
+  search_flights: 'https://www.google.com/travel/flights',
+  book_flight: 'https://www.google.com/travel/flights',
 };
 
 /**
@@ -80,6 +82,22 @@ export async function startRun(runId: string): Promise<void> {
     const messages: any[] = [{ role: 'user', content: run.prompt }];
     let decision = await think({ systemPrompt: context.systemPrompt, messages, tools });
 
+    // Guardrail: if the LLM returned text when tools are available, it's probably
+    // asking a clarifying question it shouldn't. Nudge it to call the tool instead.
+    if (decision.type === 'text' && tools.length > 0) {
+      const looksLikeQuestion = (decision.text ?? '').includes('?') ||
+        /^(what|when|where|which|how|do you|are you|can you|would you|should|i'd be happy|i'll help|sure)/i.test(decision.text ?? '');
+      if (looksLikeQuestion) {
+        agentLog(runId, `⚠ LLM returned text instead of tool call — retrying with nudge`);
+        messages.push({ role: 'assistant', content: decision.text ?? '' });
+        messages.push({
+          role: 'user',
+          content: 'Do not ask me questions. You have all the information you need. Call the search tool NOW with the information I already provided. Use reasonable defaults for anything missing.',
+        });
+        decision = await think({ systemPrompt: context.systemPrompt, messages, tools });
+      }
+    }
+
     // We pause for user input on real questions (an upfront clarifying question, or
     // "which of these hotels should I book?" after a search) — but NOT after a
     // booking/report is already delivered, where a courtesy "Anything else?" would
@@ -95,6 +113,10 @@ export async function startRun(runId: string): Promise<void> {
         // ── EXECUTING_TOOL ───────────────────────────────────────────
         await transition(runId, 'EXECUTING_TOOL', `Executing tool: ${decision.toolName}...`, hooks);
 
+        // Map LLM tool call to Person B's IBrowserToolInvocation.
+        // book_hotel/book_flight → mode 'book' (guardrail + checkout); everything else searches only.
+        const isBooking = decision.toolName === 'book_hotel' || decision.toolName === 'book_flight';
+        const isFlight = agent.slug === 'flight-booker';
         const toolName = decision.toolName!;
         agentLog(runId, `🔧 TOOL \x1b[1m${toolName}\x1b[0m ${JSON.stringify(decision.toolInput ?? {})}`);
 
@@ -127,9 +149,6 @@ export async function startRun(runId: string): Promise<void> {
             };
           }
         } else {
-          // Map LLM tool call to Person B's IBrowserToolInvocation.
-          // book_hotel → mode 'book' (guardrail + checkout); everything else searches only.
-          const isBooking = toolName === 'book_hotel';
           const invocation: IBrowserToolInvocation = {
             runId,
             targetUrl: TOOL_TARGETS[toolName] ?? 'https://www.booking.com',
@@ -141,7 +160,7 @@ export async function startRun(runId: string): Promise<void> {
           // Person B's executeBrowserTask handles guardrails internally:
           // expediaMacro.ts calls requestAuthorization() which emits action_required
           // and waits for resolveAuthorization() via POST /api/agent/confirm
-          result = await executeBrowserTask(invocation, hooks);
+          result = await executeBrowserTask(invocation, hooks, isFlight ? 'flight' : 'hotel');
 
           // Record a confirmed booking so it becomes a durable episodic memory
           // ("this hotel is booked by the user").

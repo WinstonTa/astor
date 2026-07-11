@@ -67,33 +67,41 @@ export function FloatingAgentChat({
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+    <div className="fixed top-4 right-4 z-50 flex flex-col items-end">
       {/* Chat Panel */}
       {isOpen && (
         <div
           ref={chatRef}
           className="mb-3 w-[400px] max-w-[calc(100vw-3rem)]"
-          style={{ animation: "chatPopIn 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards" }}
+          style={{ animation: "chatPopIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards" }}
         >
-          <div className="relative flex max-h-[70vh] flex-col overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-br from-zinc-800/95 to-zinc-900/98 shadow-2xl backdrop-blur-3xl">
+          <div className="glass-panel relative flex max-h-[70vh] flex-col overflow-hidden rounded-2xl border border-brass/15 shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
+            {/* Top-edge glass reflection */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+
             {/* Header */}
-            <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3">
-              <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center justify-between border-b border-border/20 px-4 py-3">
+              <div className="flex items-center gap-2.5">
                 <div
-                  className="flex h-7 w-7 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: `${agentAccent}20` }}
+                  className="flex h-8 w-8 items-center justify-center rounded-[10px] border backdrop-blur-sm"
+                  style={{
+                    backgroundColor: `${agentAccent}12`,
+                    borderColor: `${agentAccent}25`,
+                  }}
                 >
-                  <Bot size={14} style={{ color: agentAccent }} />
+                  <Bot size={15} style={{ color: agentAccent }} />
                 </div>
-                <span className="text-[13px] font-medium text-bone">{agentName}</span>
-                <span className="flex items-center gap-1.5 rounded-full bg-phosphor/10 px-2 py-0.5">
-                  <span className="h-1 w-1 animate-pulse rounded-full bg-[var(--color-phosphor)]" />
-                  <span className="font-mono text-[9px] text-[var(--color-phosphor)]">LIVE</span>
-                </span>
+                <div>
+                  <span className="block text-[13px] font-medium text-bone">{agentName}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-1 w-1 animate-pulse rounded-full bg-phosphor" />
+                    <span className="font-mono text-[9px] text-phosphor/80">LIVE</span>
+                  </span>
+                </div>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="rounded-full p-1 transition-colors hover:bg-white/5"
+                className="rounded-lg p-1.5 transition-colors hover:bg-white/5"
                 aria-label="Minimize chat"
               >
                 <X size={14} className="text-bone-faint" />
@@ -101,19 +109,24 @@ export function FloatingAgentChat({
             </div>
 
             {/* Messages */}
-            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3.5 scroll-brass">
+            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3.5 scroll-brass" style={{ maxHeight: '60vh' }}>
               {chatHistory.length === 0 && !guardrailPending && (
-                <p className="py-6 text-center text-[12px] text-bone-faint/50">
-                  Agent messages will appear here
-                </p>
+                <div className="flex flex-col items-center justify-center py-8">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-brass/5">
+                    <Bot size={18} className="text-brass/40" />
+                  </div>
+                  <p className="text-center text-[12px] text-bone-faint/40">
+                    Agent messages will appear here
+                  </p>
+                </div>
               )}
               {chatHistory.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
                     className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 ${
                       msg.role === "user"
-                        ? "rounded-br-sm bg-gradient-to-br from-brass to-brass-dim text-[12.5px] leading-relaxed text-primary-foreground shadow-[0_2px_8px_rgba(204,154,78,0.15)]"
-                        : "rounded-bl-sm border border-border/30 bg-panel-raised"
+                        ? "rounded-br-sm bg-gradient-to-br from-brass to-brass-dim text-[12.5px] leading-relaxed text-primary-foreground shadow-[0_2px_12px_rgba(204,154,78,0.2)]"
+                        : "rounded-bl-sm border border-border/30 bg-panel-raised/80 backdrop-blur-sm"
                     }`}
                   >
                     {msg.role === "user" ? msg.message : <Markdown>{msg.message}</Markdown>}
@@ -123,31 +136,30 @@ export function FloatingAgentChat({
 
               {/* Inline guardrail confirmation card */}
               {guardrailPending && (
-                <div className="animate-rise overflow-hidden rounded-2xl border border-[var(--color-coral-signal)]/40 bg-black/30">
-                  <div className="h-[3px] w-full bg-gradient-to-r from-[var(--color-coral-signal)] via-[var(--color-amber-signal)] to-[var(--color-coral-signal)]" />
-                  <div className="flex flex-col gap-3 p-3.5">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-coral-signal)]/15">
-                        <TriangleAlert size={13} className="text-[var(--color-coral-signal)]" />
+                <div className="animate-rise overflow-hidden rounded-2xl border border-coral-signal/30 bg-obsidian/60 backdrop-blur-sm">
+                  <div className="h-[3px] w-full bg-gradient-to-r from-coral-signal via-amber-signal to-coral-signal" />
+                  <div className="flex flex-col gap-3 p-4">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-coral-signal/10">
+                        <TriangleAlert size={14} className="text-coral-signal" />
                       </span>
-                      <span className="text-[12.5px] font-medium text-bone">Confirm booking</span>
+                      <span className="text-[13px] font-medium text-bone">Confirm booking</span>
                     </div>
                     <p className="text-[12px] leading-relaxed text-bone-dim">
-                      Ready to book <span className="text-bone">{guardrail!.title}</span> for{" "}
+                      Ready to book <span className="font-medium text-bone">{guardrail!.title}</span> for{" "}
                       <span className="font-mono text-brass-bright">{guardrail!.cost}</span>. This will
                       spend money — please authorize.
                     </p>
                     <div className="flex gap-2">
                       <button
                         onClick={onCancel}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-border/50 py-2 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border/40 py-2.5 text-[12px] text-bone-dim transition-all hover:border-border/60 hover:text-bone"
                       >
                         <X size={13} /> Cancel
                       </button>
                       <button
                         onClick={onAuthorize}
-                        className="flex flex-[1.4] items-center justify-center gap-1.5 rounded-[10px] py-2 text-[12px] font-medium text-primary-foreground transition-transform hover:brightness-110 active:scale-[0.98]"
-                        style={{ background: `linear-gradient(135deg, ${agentAccent}, ${agentAccent}cc)` }}
+                        className="btn-primary-glass flex flex-[1.4] items-center justify-center gap-1.5 rounded-xl py-2.5 text-[12px] font-medium text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98]"
                       >
                         <Check size={13} /> Authorize &amp; Book
                       </button>
@@ -159,18 +171,18 @@ export function FloatingAgentChat({
               {/* Terminal status banner */}
               {statusBanner && (
                 <div
-                  className={`flex items-start gap-2 rounded-xl border px-3 py-2.5 text-[12px] ${
+                  className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-[12px] backdrop-blur-sm ${
                     statusBanner.kind === "success"
-                      ? "border-phosphor/25 bg-phosphor/5 text-bone"
-                      : "border-coral-signal/25 bg-coral-signal/5 text-bone"
+                      ? "border-phosphor/20 bg-phosphor/5"
+                      : "border-coral-signal/20 bg-coral-signal/5"
                   }`}
                 >
                   {statusBanner.kind === "success" ? (
-                    <CircleCheck size={15} className="mt-0.5 shrink-0 text-[var(--color-phosphor)]" />
+                    <CircleCheck size={15} className="mt-0.5 shrink-0 text-phosphor" />
                   ) : (
-                    <XCircle size={15} className="mt-0.5 shrink-0 text-[var(--color-coral-signal)]" />
+                    <XCircle size={15} className="mt-0.5 shrink-0 text-coral-signal" />
                   )}
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 leading-snug text-bone">
                     <Markdown>{statusBanner.message}</Markdown>
                   </div>
                 </div>
@@ -180,7 +192,7 @@ export function FloatingAgentChat({
             </div>
 
             {/* Input */}
-            <div className="shrink-0 border-t border-white/5 px-3 pb-3 pt-2.5">
+            <div className="shrink-0 border-t border-border/20 px-3.5 pb-3.5 pt-3">
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -188,12 +200,12 @@ export function FloatingAgentChat({
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={isWaitingForReply ? "Reply to agent..." : "Send a message..."}
-                  className="flex-1 rounded-xl border border-border/30 bg-obsidian/60 px-3.5 py-2.5 text-[12.5px] text-bone placeholder:text-bone-faint/40 outline-none transition-all duration-200 focus:border-brass/25 focus:shadow-[0_0_16px_rgba(204,154,78,0.06)]"
+                  className="flex-1 rounded-xl border border-border/25 bg-obsidian/50 px-3.5 py-2.5 text-[12.5px] text-bone placeholder:text-bone-faint/35 outline-none transition-all duration-300 focus:border-brass/25 focus:shadow-[0_0_20px_rgba(204,154,78,0.06)] backdrop-blur-sm"
                 />
                 <button
                   onClick={handleSend}
                   disabled={!message.trim()}
-                  className="flex items-center justify-center rounded-xl px-3.5 py-2.5 transition-all duration-200 hover:opacity-90 disabled:opacity-30"
+                  className="flex items-center justify-center rounded-xl px-3.5 py-2.5 transition-all duration-200 hover:brightness-110 disabled:opacity-30"
                   style={{ background: `linear-gradient(135deg, ${agentAccent}, ${agentAccent}cc)` }}
                   aria-label="Send"
                 >
@@ -213,31 +225,31 @@ export function FloatingAgentChat({
         onClick={() => setIsOpen(!isOpen)}
         style={{
           background: `linear-gradient(135deg, ${agentAccent}cc, ${agentAccent}88)`,
-          boxShadow: `0 0 20px ${agentAccent}70, 0 0 40px ${agentAccent}50, 0 0 60px ${agentAccent}30`,
-          border: "2px solid rgba(255,255,255,0.15)",
+          boxShadow: `0 0 24px ${agentAccent}60, 0 0 48px ${agentAccent}30`,
+          border: "1.5px solid rgba(255,255,255,0.12)",
         }}
         aria-label={isOpen ? "Minimize chat" : "Open chat"}
       >
-        <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/20 to-transparent opacity-30" />
+        <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/15 to-transparent" />
         <div className="relative z-10">
           {isOpen ? <X size={22} className="text-white" /> : <Bot size={22} className="text-white" />}
         </div>
         {!isOpen && needsAttention && (
           <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--color-phosphor)] opacity-75" />
-            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-[var(--color-phosphor)]" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-phosphor opacity-75" />
+            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-phosphor" />
           </span>
         )}
       </button>
 
       <style>{`
         @keyframes chatPopIn {
-          0% { opacity: 0; transform: scale(0.9) translateY(16px); }
+          0% { opacity: 0; transform: scale(0.92) translateY(-10px); }
           100% { opacity: 1; transform: scale(1) translateY(0); }
         }
         .floating-agent-btn:hover {
-          transform: scale(1.08);
-          box-shadow: 0 0 30px ${agentAccent}90, 0 0 50px ${agentAccent}70, 0 0 70px ${agentAccent}50 !important;
+          transform: scale(1.08) !important;
+          box-shadow: 0 0 35px ${agentAccent}80, 0 0 60px ${agentAccent}40 !important;
         }
       `}</style>
     </div>

@@ -13,8 +13,15 @@ type Page = Awaited<ReturnType<Stagehand['context']['awaitActivePage']>>;
 // ── Constants ────────────────────────────────────────────────────────────────
 const MAX_RETRIES = 2;
 const EXTRACT_TIMEOUT_MS = 60_000;   // 60s (was 120s — if it takes >60s the page is stuck)
-const DOM_SETTLE_MS = 4_000;         // wait for JS-heavy pages to settle
-const POST_POPUP_MS = 1_500;         // brief pause after popup dismissal
+const DOM_SETTLE_MS = 1_500;         // wait for JS-heavy pages to settle (was 4s — fires unconditionally after every nav)
+const POST_POPUP_MS = 600;           // brief pause after popup dismissal (was 1.5s)
+// `networkidle` previously had no explicit cap, so it used Stagehand's own
+// 15s default — and this is called ~7x across a single search+book flow. Many
+// travel sites (live pricing widgets, chat bubbles, analytics beacons) never
+// truly go network-idle, so every one of those calls could silently burn up to
+// 15s before falling through to the catch(). Capping it short means we bail
+// fast and rely on the fixed DOM_SETTLE_MS sleep instead.
+const NETWORK_IDLE_TIMEOUT_MS = 5_000;
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 const HotelResultSchema = z.object({
@@ -166,7 +173,7 @@ async function detectBotProtection(stagehand: Stagehand, page: Page): Promise<bo
  */
 async function waitForPageSettle(page: Page): Promise<void> {
   try {
-    await page.waitForLoadState('networkidle').catch(() => {});
+    await page.waitForLoadState('networkidle', NETWORK_IDLE_TIMEOUT_MS).catch(() => {});
   } catch {
     // networkidle timeout is fine — we still have domcontentloaded
   }

@@ -12,6 +12,13 @@ const client = new OpenAI({
 // tool-calling decisions. This is separate from the Stagehand vision model.
 const MODEL = process.env.LLM_MODEL ?? 'deepseek-v4-pro';
 
+// GPT-5.x models on DigitalOcean's /v1/chat/completions 400 when function tools
+// are combined with reasoning ("Function tools with reasoning_effort are not
+// supported ... set reasoning_effort to 'none'"). Only these models need the
+// override — sending it to deepseek/claude/etc. would be a no-op param they
+// don't recognize, so gate it narrowly by model id prefix.
+const NEEDS_REASONING_EFFORT_NONE = /^openai-gpt-5/.test(MODEL);
+
 // ── Types for the tool-calling loop ───────────────────────────────────────
 export interface LLMDecision {
   type: 'text' | 'tool_call';
@@ -106,6 +113,7 @@ export async function think(params: {
     max_tokens: 4096, // 1024 was too low for detailed hotel comparisons
     messages: buildMessages(systemPrompt, messages),
     tools: tools.length > 0 ? toOpenAITools(tools) : undefined,
+    ...(NEEDS_REASONING_EFFORT_NONE ? { reasoning_effort: 'none' as const } : {}),
   });
 
   const choice = response.choices[0];

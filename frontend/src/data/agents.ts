@@ -24,16 +24,18 @@ export interface Agent {
 }
 
 // ── Icon + accent mapping by slug ─────────────────────────────────────────
+// Realistic, muted tones that feel warm and premium (not neon)
 const SLUG_META: Record<string, { icon: LucideIcon; accent: string }> = {
-  "hotel-booker":      { icon: BedDouble,       accent: "#e8b96a" },
-  "finance-ledger":    { icon: Wallet,          accent: "#7dffb0" },
-  "mom-scheduler":     { icon: CalendarHeart,   accent: "#7dffb0" },
-  "grocery-runner":    { icon: ShoppingBasket,   accent: "#ff5c4d" },
-  "inbox-triage":      { icon: MailQuestion,    accent: "#7dffb0" },
-  "travel-concierge":  { icon: PlaneTakeoff,    accent: "#7dffb0" },
+  "hotel-booker":      { icon: BedDouble,       accent: "#c9956b" },  // warm amber/bronze
+  "flight-booker":     { icon: PlaneTakeoff,    accent: "#7ba4c9" },  // muted steel blue
+  "finance-ledger":    { icon: Wallet,          accent: "#8bbd8e" },  // sage green
+  "mom-scheduler":     { icon: CalendarHeart,   accent: "#c48f7a" },  // terracotta
+  "grocery-runner":    { icon: ShoppingBasket,   accent: "#b5838d" },  // dusty rose
+  "inbox-triage":      { icon: MailQuestion,    accent: "#9a8ec4" },  // lavender
+  "travel-concierge":  { icon: PlaneTakeoff,    accent: "#6da8a8" },  // teal
 };
 
-const DEFAULT_META = { icon: BedDouble, accent: "#7dffb0" };
+const DEFAULT_META = { icon: BedDouble, accent: "#c9956b" };
 
 // ── Convert a DB agent to the frontend Agent type ─────────────────────────
 export function mapApiAgent(api: ApiAgent): Agent {
@@ -52,6 +54,7 @@ export function mapApiAgent(api: ApiAgent): Agent {
 }
 
 // ── Fallback mock data (used when backend is unavailable) ─────────────────
+// Top 3: Hotel Booker, Grocery Runner, Flight Booker (featured agents)
 export const agents: Agent[] = [
   {
     id: "hotel-booker",
@@ -60,8 +63,28 @@ export const agents: Agent[] = [
     purpose: "Finds and reserves stays that match your saved loyalty profiles.",
     icon: BedDouble,
     status: "running",
-    accent: "#e8b96a",
+    accent: "#c9956b",
     lastActive: "Running now",
+  },
+  {
+    id: "grocery-runner",
+    slug: "grocery-runner",
+    name: "Grocery Runner",
+    purpose: "Reorders staples and swaps items when a store is out of stock.",
+    icon: ShoppingBasket,
+    status: "attention",
+    accent: "#b5838d",
+    lastActive: "Needs input",
+  },
+  {
+    id: "flight-booker",
+    slug: "flight-booker",
+    name: "Flight Booker",
+    purpose: "Searches and books flights at the best price for your route and dates.",
+    icon: PlaneTakeoff,
+    status: "idle",
+    accent: "#7ba4c9",
+    lastActive: "Idle",
   },
   {
     id: "finance-ledger",
@@ -70,7 +93,7 @@ export const agents: Agent[] = [
     purpose: "Reconciles spend across accounts and flags budget drift weekly.",
     icon: Wallet,
     status: "idle",
-    accent: "#7dffb0",
+    accent: "#8bbd8e",
     lastActive: "Idle · 4h ago",
   },
   {
@@ -80,18 +103,8 @@ export const agents: Agent[] = [
     purpose: "Coordinates school pickups, appointments, and family logistics.",
     icon: CalendarHeart,
     status: "idle",
-    accent: "#7dffb0",
+    accent: "#c48f7a",
     lastActive: "Idle · 1d ago",
-  },
-  {
-    id: "grocery-runner",
-    slug: "grocery-runner",
-    name: "Grocery Runner",
-    purpose: "Reorders staples and swaps items when a store is out of stock.",
-    icon: ShoppingBasket,
-    status: "attention",
-    accent: "#ff5c4d",
-    lastActive: "Needs input",
   },
   {
     id: "inbox-triage",
@@ -100,7 +113,7 @@ export const agents: Agent[] = [
     purpose: "Drafts replies and escalates anything that smells like urgent.",
     icon: MailQuestion,
     status: "idle",
-    accent: "#7dffb0",
+    accent: "#9a8ec4",
     lastActive: "Idle · 12m ago",
   },
   {
@@ -110,7 +123,7 @@ export const agents: Agent[] = [
     purpose: "Builds itineraries and watches fares against your travel window.",
     icon: PlaneTakeoff,
     status: "idle",
-    accent: "#7dffb0",
+    accent: "#6da8a8",
     lastActive: "Idle · 2d ago",
   },
 ];

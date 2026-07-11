@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Fraunces", "Iowan Old Style", serif;
-  --font-serif: "Fraunces", "Iowan Old Style", serif;
+  --font-display: "Instrument Sans", -apple-system, sans-serif;
+  --font-serif: "Georgia", "Times New Roman", serif;
   --font-sans: "Instrument Sans", -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", "SFMono-Regular", monospace;
 
