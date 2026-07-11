@@ -1,0 +1,3 @@
+// PERSON A — Run lifecycle state machine
+// QUEUED → HYDRATING → THINKING → EXECUTING_TOOL → AWAITING_CONFIRMATION → FINALIZING → COMPLETE | FAILED | CANCELLED
+// TODO: Implement orchestrator loop

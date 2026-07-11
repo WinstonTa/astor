@@ -1,0 +1,11 @@
+# Person A owns: routes, services, db, frontend
+/backend/src/routes/       @arjunsharma
+/backend/src/services/     @arjunsharma
+/backend/src/db/           @arjunsharma
+/frontend/                 @arjunsharma
+
+# Person B owns: tools
+/backend/src/tools/        @PERSON_B_GITHUB_HANDLE
+
+# Shared — frozen contracts (dual-approval required)
+/backend/src/contracts/    @arjunsharma @PERSON_B_GITHUB_HANDLE
