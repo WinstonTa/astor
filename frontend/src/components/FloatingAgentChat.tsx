@@ -67,7 +67,7 @@ export function FloatingAgentChat({
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end">
+    <div className="fixed top-4 right-4 z-50 flex flex-col items-end">
       {/* Chat Panel */}
       {isOpen && (
         <div
