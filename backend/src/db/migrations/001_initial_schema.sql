@@ -91,6 +91,11 @@ CREATE INDEX IF NOT EXISTS idx_episodic_memories_embedding
 CREATE INDEX IF NOT EXISTS idx_run_events_run_id
   ON run_events (run_id, created_at);
 
+-- Seed test user (used by frontend)
+INSERT INTO users (id, email, display_name) VALUES
+  ('00000000-0000-0000-0000-000000000001', 'test@astor.app', 'Test User')
+ON CONFLICT (id) DO NOTHING;
+
 -- Seed agents
 INSERT INTO agents (slug, name, purpose, tool_manifest) VALUES
   ('hotel-booker', 'Hotel Booker', 'Search and book hotels at the best price', '{"tools": ["browser_search", "browser_book"]}'),

@@ -29,16 +29,47 @@ export async function resolveContextId(existingContextId: string): Promise<strin
 }
 
 export async function createSession(contextId: string | undefined): Promise<Stagehand> {
-  const stagehand = new Stagehand({
-    env: 'BROWSERBASE',
-    model: 'anthropic/claude-sonnet-4-6',
-    cacheDir: '.stagehand-cache',
-    domSettleTimeout: 30_000,
+  // ── Model choice ──────────────────────────────────────────────────────────
+  // Stagehand's act()/observe()/extract() rely on VISION to understand screenshots,
+  // popups, and page layout. DeepSeek v4 Pro is a reasoning model — it cannot
+  // interpret screenshots. GPT-4o has native vision support and is the recommended
+  // model for Stagehand browser automation.
+  //
+  // Override with STAGEHAND_MODEL env var if you want to use a different vision model
+  // (e.g. 'claude-3.5-sonnet' or 'gpt-4o-mini' for lower cost).
+  const stagehandModel = process.env.STAGEHAND_MODEL ?? 'gpt-4o';
+
+  const useBrowserbase = Boolean(process.env.BROWSERBASE_API_KEY);
+
+  const stagehandConfig: ConstructorParameters<typeof Stagehand>[0] = {
+    env: useBrowserbase ? 'BROWSERBASE' : 'LOCAL',
+    model: {
+      modelName: stagehandModel,
+      apiKey: process.env.DIGITAL_OCEAN_MODEL_ACCESS_KEY ?? '',
+      baseURL: 'https://inference.do-ai.run/v1',
+    },
+    domSettleTimeout: 60_000,
     verbose: 1,
-    browserbaseSessionCreateParams: contextId
-      ? { browserSettings: { context: { id: contextId, persist: true } } }
-      : undefined,
-  });
+  };
+
+  // Wire Browserbase context for cookie/login persistence across runs
+  if (useBrowserbase && contextId) {
+    stagehandConfig.browserbaseSessionCreateParams = {
+      browserSettings: {
+        context: { id: contextId, persist: true },
+      },
+    };
+  }
+
+  // LOCAL-only options (ignored when env: 'BROWSERBASE')
+  if (!useBrowserbase) {
+    stagehandConfig.localBrowserLaunchOptions = {
+      headless: false,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    };
+  }
+
+  const stagehand = new Stagehand(stagehandConfig);
   await stagehand.init();
   return stagehand;
 }

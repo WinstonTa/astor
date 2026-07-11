@@ -1,15 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Sidebar, type ViewId } from "./components/Sidebar";
 import { MarketplaceGrid } from "./components/MarketplaceGrid";
 import { ActiveAgentView } from "./components/ActiveAgentView";
 import { CommonsView } from "./components/CommonsView";
 import { SecuritySettings } from "./components/SecuritySettings";
-import { agents } from "./data/agents";
+import { agents as fallbackAgents, mapApiAgent, type Agent } from "./data/agents";
+import { fetchAgents } from "./lib/api";
 
 export default function App() {
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const [view, setView] = useState<ViewId>("grid");
+  const [agents, setAgents] = useState<Agent[]>(fallbackAgents);
+
+  useEffect(() => {
+    fetchAgents()
+      .then((res) => {
+        if (res.agents.length > 0) {
+          setAgents(res.agents.map(mapApiAgent));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const activeAgent = agents.find((a) => a.id === activeAgentId) ?? null;
 
   const handleNavigate = (id: ViewId) => {
@@ -74,7 +87,7 @@ export default function App() {
               transition={{ duration: 0.25 }}
               className="flex h-full flex-col"
             >
-              <MarketplaceGrid onOpen={handleOpenAgent} />
+              <MarketplaceGrid agents={agents} onOpen={handleOpenAgent} />
             </motion.div>
           )}
         </AnimatePresence>

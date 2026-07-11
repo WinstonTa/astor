@@ -7,6 +7,8 @@ export interface IBrowserToolInvocation {
     location: string;
     maxBudget: number;
     preferences: string[];
+    checkIn?: string;   // YYYY-MM-DD — optional, defaults handled downstream
+    checkOut?: string;  // YYYY-MM-DD — optional, defaults handled downstream
   };
 }
 

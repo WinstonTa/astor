@@ -1,22 +1,7 @@
-import { useEffect, useState } from "react";
-import { agents as fallbackAgents, mapApiAgent, type Agent } from "../data/agents";
-import { fetchAgents } from "../lib/api";
 import { AgentCard } from "./AgentCard";
+import type { Agent } from "../data/agents";
 
-export function MarketplaceGrid({ onOpen }: { onOpen: (id: string) => void }) {
-  const [agents, setAgents] = useState<Agent[]>(fallbackAgents);
-
-  useEffect(() => {
-    fetchAgents()
-      .then((res) => {
-        if (res.agents.length > 0) {
-          setAgents(res.agents.map(mapApiAgent));
-        }
-      })
-      .catch(() => {
-        // Backend unavailable — keep fallback mock data
-      });
-  }, []);
+export function MarketplaceGrid({ agents, onOpen }: { agents: Agent[]; onOpen: (id: string) => void }) {
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto scroll-brass px-10 py-10">

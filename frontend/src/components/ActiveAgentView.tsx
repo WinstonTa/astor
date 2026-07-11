@@ -1,12 +1,12 @@
-import { useState, useCallback } from "react";
-import { ArrowLeft, CircleCheck, Loader2, XCircle } from "lucide-react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { ArrowLeft, CircleCheck, Loader2, XCircle, Send } from "lucide-react";
 import type { Agent } from "../data/agents";
 import { StatusRing } from "./StatusRing";
 import { TelemetryLog } from "./TelemetryLog";
 import { ViewportPanel } from "./ViewportPanel";
 import { GuardrailModal } from "./GuardrailModal";
 import { useRunStream } from "../lib/useRunStream";
-import { startRun, confirmRun } from "../lib/api";
+import { startRun, confirmRun, replyToAgent } from "../lib/api";
 
 type GuardrailState = "pending" | "authorized" | "dismissed";
 type RunPhase = "idle" | "starting" | "running" | "complete" | "failed";
@@ -34,7 +34,10 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
   const [runPhase, setRunPhase] = useState<RunPhase>("idle");
   const [runId, setRunId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState(DEFAULT_PROMPTS[agent.slug] ?? "");
+  const [reply, setReply] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [chatHistory, setChatHistory] = useState<Array<{ role: "user" | "agent"; message: string }>>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { events } = useRunStream(runId);
   const Icon = agent.icon;
@@ -44,6 +47,27 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
   const isFailed = events.some((e) => e.type === "complete" && e.message.toLowerCase().includes("fail"));
   const lastEvent = events[events.length - 1];
   const guardrailPayload = events.find((e) => e.type === "action_required")?.payload;
+
+  // Track agent messages and add to chat history
+  useEffect(() => {
+    const agentMessages = events.filter((e) => e.type === "agent_message");
+    const newMessages = agentMessages.map((e) => ({ role: "agent" as const, message: e.message }));
+    if (newMessages.length > 0) {
+      setChatHistory((prev) => {
+        const existing = prev.filter((m) => m.role === "user");
+        return [...existing, ...newMessages];
+      });
+    }
+  }, [events]);
+
+  // Auto-scroll chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory]);
+
+  const isWaitingForReply = events.some((e) => e.type === "agent_message") &&
+    !events.some((e) => e.type === "complete") &&
+    !events.some((e) => e.type === "action_required");
 
   const handleStart = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -73,6 +97,18 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
       setGuardrail(decision === "authorize" ? "authorized" : "dismissed");
     }
   }, [runId]);
+
+  const handleReply = useCallback(async () => {
+    if (!runId || !reply.trim()) return;
+    const userReply = reply.trim();
+    setReply("");
+    setChatHistory((prev) => [...prev, { role: "user", message: userReply }]);
+    try {
+      await replyToAgent(runId, userReply);
+    } catch (err: any) {
+      setError(err.message ?? "Failed to send reply");
+    }
+  }, [runId, reply]);
 
   // Derive display status from live events
   const displayStatus = runPhase === "running"
@@ -139,6 +175,45 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
           <span className="font-mono text-[12px] text-[var(--color-bone-dim)]">Starting run...</span>
         </div>
       ) : null}
+
+      {/* ── Chat interface ──────────────────────────────────────────── */}
+      {runPhase === "running" && (chatHistory.length > 0 || isWaitingForReply) && (
+        <div className="mb-5 rounded-[12px] border border-[var(--color-hairline)] bg-[var(--color-panel)] p-4">
+          <div className="max-h-48 overflow-y-auto space-y-3 mb-3">
+            {chatHistory.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[80%] rounded-[10px] px-3 py-2 text-[13px] ${
+                  msg.role === "user"
+                    ? "bg-[var(--color-brass)] text-[#241a0c]"
+                    : "bg-[var(--color-panel-raised)] text-[var(--color-bone)]"
+                }`}>
+                  {msg.message}
+                </div>
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+          {isWaitingForReply && (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleReply()}
+                placeholder="Type your reply..."
+                className="flex-1 rounded-[10px] border border-[var(--color-hairline)] bg-[var(--color-panel)] px-3 py-2 text-[13px] text-[var(--color-bone)] placeholder:text-[var(--color-bone-faint)] focus:border-[var(--color-brass)] focus:outline-none"
+              />
+              <button
+                onClick={handleReply}
+                disabled={!reply.trim()}
+                className="flex items-center gap-1 rounded-[10px] bg-[var(--color-brass)] px-3 py-2 text-[12px] text-[#241a0c] transition-opacity hover:opacity-90 disabled:opacity-40"
+              >
+                <Send size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Main content ────────────────────────────────────────────── */}
       <div className="relative grid min-h-0 flex-1 grid-cols-1 gap-5 lg:grid-cols-2">

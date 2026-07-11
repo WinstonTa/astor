@@ -10,7 +10,7 @@ import { guardrailBridge } from '../guardrails.js';
 
 const invocation: IBrowserToolInvocation = {
   runId: `local-${Date.now()}`,
-  targetUrl: process.env.LOCAL_RUN_TARGET_URL ?? 'https://www.expedia.com/Hotel-Search?destination=Seattle%2C+WA',
+  targetUrl: process.env.LOCAL_RUN_TARGET_URL ?? 'https://www.trivago.com',
   browserbaseContextId: '',
   searchParameters: {
     location: 'Seattle, WA',

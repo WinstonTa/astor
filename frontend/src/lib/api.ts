@@ -49,6 +49,13 @@ export function confirmRun(runId: string, decision: "authorize" | "cancel"): Pro
   });
 }
 
+export function replyToAgent(runId: string, reply: string): Promise<{ ok: boolean }> {
+  return request("/api/agent/reply", {
+    method: "POST",
+    body: JSON.stringify({ runId, reply }),
+  });
+}
+
 export function fetchCommons(userId: string): Promise<{ facts: ApiCommonsFact[] }> {
   return request(`/api/commons?userId=${encodeURIComponent(userId)}`);
 }

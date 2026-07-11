@@ -1,9 +1,12 @@
 // PERSON A — Post-run episodic memory writer
 // Summarization → embedding → episodic_memories insert
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { insertEpisodicMemory } from './database.js';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = new OpenAI({
+  baseURL: 'https://inference.do-ai.run/v1/',
+  apiKey: process.env.DIGITAL_OCEAN_MODEL_ACCESS_KEY ?? '',
+});
 
 /**
  * After a run completes, summarize what happened and store it as an episodic memory.
@@ -28,10 +31,10 @@ export async function writeMemory(params: {
   await insertEpisodicMemory(userId, agentId, summary, embedding, runId);
 }
 
-// ── Summarization via Anthropic ───────────────────────────────────────────
+// ── Summarization via DigitalOcean Inference ──────────────────────────────
 async function summarize(userPrompt: string, assistantResponse: string): Promise<string> {
-  const res = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const res = await client.chat.completions.create({
+    model: 'deepseek-v4-pro',
     max_tokens: 256,
     messages: [
       {
@@ -41,8 +44,7 @@ async function summarize(userPrompt: string, assistantResponse: string): Promise
     ],
   });
 
-  const block = res.content[0];
-  return block.type === 'text' ? block.text : '';
+  return res.choices[0]?.message?.content ?? '';
 }
 
 // ── Embedding via Anthropic ──────────────────────────────────────────────

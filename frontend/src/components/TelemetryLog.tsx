@@ -26,6 +26,7 @@ const FRAME_META: Record<ITelemetryFrame["type"], { glyph: string; tone: LogRow[
   viewport_update:   { glyph: "📸", tone: "phosphor" },
   action_required:   { glyph: "🛑", tone: "coral" },
   complete:          { glyph: "✅", tone: "phosphor" },
+  agent_message:     { glyph: "💬", tone: "phosphor" },
 };
 
 function frameToRow(frame: ITelemetryFrame, startTime: number): LogRow {

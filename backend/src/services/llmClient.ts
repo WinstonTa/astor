@@ -1,82 +1,174 @@
-// PERSON A — Anthropic API tool-calling client
-import Anthropic from '@anthropic-ai/sdk';
-import type { IBrowserToolInvocation, IToolExecutionResult } from '../contracts/toolContract.js';
+// PERSON A — LLM client using DigitalOcean Inference Engine (OpenAI-compatible)
+// Uses Sonnet via https://inference.do-ai.run/v1/ with the OpenAI SDK
+import OpenAI from 'openai';
+import type { IToolExecutionResult } from '../contracts/toolContract.js';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = new OpenAI({
+  baseURL: 'https://inference.do-ai.run/v1/',
+  apiKey: process.env.DIGITAL_OCEAN_MODEL_ACCESS_KEY ?? '',
+});
+
+// Main reasoning model — DeepSeek v4 Pro is a strong reasoning model, good for
+// tool-calling decisions. This is separate from the Stagehand vision model.
+const MODEL = process.env.LLM_MODEL ?? 'deepseek-v4-pro';
 
 // ── Types for the tool-calling loop ───────────────────────────────────────
 export interface LLMDecision {
   type: 'text' | 'tool_call';
   text?: string;
-  toolInvocation?: IBrowserToolInvocation;
   toolName?: string;
   toolInput?: Record<string, unknown>;
 }
 
+// ── Convert Anthropic tool defs → OpenAI function format ─────────────────
+interface AnthropicTool {
+  name: string;
+  description?: string;
+  input_schema: Record<string, unknown>;
+}
+
+interface OpenAITool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+function toOpenAITools(tools: AnthropicTool[]): OpenAITool[] {
+  return tools.map((t) => ({
+    type: 'function' as const,
+    function: {
+      name: t.name,
+      description: t.description ?? '',
+      parameters: t.input_schema,
+    },
+  }));
+}
+
+// ── Build OpenAI messages from system + conversation ─────────────────────
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+  }>;
+  tool_call_id?: string;
+}
+
+function buildMessages(systemPrompt: string, messages: ChatMessage[]): OpenAI.ChatCompletionMessageParam[] {
+  const result: OpenAI.ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
+  ];
+  for (const msg of messages) {
+    if (msg.role === 'assistant' && msg.tool_calls) {
+      result.push({
+        role: 'assistant',
+        content: msg.content,
+        tool_calls: msg.tool_calls.map(tc => ({
+          id: tc.id,
+          type: 'function' as const,
+          function: tc.function,
+        })),
+      });
+    } else if (msg.role === 'tool' && msg.tool_call_id) {
+      result.push({
+        role: 'tool',
+        content: msg.content ?? '',
+        tool_call_id: msg.tool_call_id,
+      });
+    } else {
+      result.push({
+        role: msg.role as 'system' | 'user',
+        content: msg.content ?? '',
+      });
+    }
+  }
+  return result;
+}
+
 /**
- * Run one turn of the Anthropic tool-calling loop.
+ * Run one turn of the tool-calling loop via DigitalOcean Inference.
  * Returns either a text response or a tool call that the orchestrator must execute.
- *
- * @param tools — the Anthropic tool definitions for this agent (from toolRegistry)
  */
 export async function think(params: {
   systemPrompt: string;
-  messages: Anthropic.MessageParam[];
-  tools?: Anthropic.Tool[];
+  messages: ChatMessage[];
+  tools?: AnthropicTool[];
 }): Promise<LLMDecision> {
   const { systemPrompt, messages, tools = [] } = params;
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1024,
-    system: systemPrompt,
-    tools: tools.length > 0 ? tools : undefined,
-    messages,
+  const response = await client.chat.completions.create({
+    model: MODEL,
+    max_tokens: 4096, // 1024 was too low for detailed hotel comparisons
+    messages: buildMessages(systemPrompt, messages),
+    tools: tools.length > 0 ? toOpenAITools(tools) : undefined,
   });
 
-  // Check for tool use blocks
-  const toolBlock = response.content.find((b) => b.type === 'tool_use');
-  if (toolBlock && toolBlock.type === 'tool_use') {
-    return {
-      type: 'tool_call',
-      toolName: toolBlock.name,
-      toolInput: toolBlock.input as Record<string, unknown>,
-    };
+  const choice = response.choices[0];
+  if (!choice) return { type: 'text', text: '' };
+
+  // Check for tool calls
+  const toolCalls = choice.message?.tool_calls;
+  if (toolCalls && toolCalls.length > 0) {
+    if (toolCalls.length > 1) {
+      console.warn(`[llmClient] LLM returned ${toolCalls.length} tool calls; only the first will be executed. Others: ${toolCalls.slice(1).map(tc => 'function' in tc ? tc.function.name : '?').join(', ')}`);
+    }
+    const tc = toolCalls[0];
+    if ('function' in tc) {
+      let input: Record<string, unknown> = {};
+      try {
+        input = JSON.parse(tc.function.arguments);
+      } catch { /* empty args */ }
+      return {
+        type: 'tool_call',
+        toolName: tc.function.name,
+        toolInput: input,
+      };
+    }
   }
 
-  // Otherwise return text
-  const textBlock = response.content.find((b) => b.type === 'text');
   return {
     type: 'text',
-    text: textBlock && textBlock.type === 'text' ? textBlock.text : '',
+    text: choice.message?.content ?? '',
   };
 }
 
 /**
  * Feed a tool result back to the LLM and get the next decision.
- *
- * @param tools — the Anthropic tool definitions for this agent (from toolRegistry)
  */
 export async function continueWithToolResult(params: {
   systemPrompt: string;
-  messages: Anthropic.MessageParam[];
+  messages: ChatMessage[];
   toolName: string;
+  toolInput?: Record<string, unknown>;
   toolResult: IToolExecutionResult;
-  tools?: Anthropic.Tool[];
+  tools?: AnthropicTool[];
 }): Promise<LLMDecision> {
-  const { systemPrompt, messages, toolName, toolResult, tools = [] } = params;
+  const { systemPrompt, messages, toolName, toolInput, toolResult, tools = [] } = params;
 
   const resultText = formatToolResult(toolName, toolResult);
+  const toolCallId = `call_${Date.now()}`;
 
-  const updatedMessages: Anthropic.MessageParam[] = [
+  const updatedMessages: ChatMessage[] = [
     ...messages,
     {
       role: 'assistant',
-      content: [{ type: 'tool_use', id: `tool_${Date.now()}`, name: toolName, input: {} }],
+      content: '',
+      tool_calls: [{
+        id: toolCallId,
+        type: 'function',
+        // Preserve the original arguments so the LLM can see what it called
+        function: { name: toolName, arguments: JSON.stringify(toolInput ?? {}) },
+      }],
     },
     {
-      role: 'user',
-      content: [{ type: 'tool_result', tool_use_id: `tool_${Date.now()}`, content: resultText }],
+      role: 'tool',
+      content: resultText,
+      tool_call_id: toolCallId,
     },
   ];
 

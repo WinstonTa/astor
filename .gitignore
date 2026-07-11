@@ -6,3 +6,4 @@ dist/
 skills-lock.json
 claudeplans/
 .stagehand-cache/
+*.tsbuildinfo

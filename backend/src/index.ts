@@ -1,6 +1,7 @@
 // PERSON A — Server bootstrap
 import 'dotenv/config';
 import express from 'express';
+import cors from 'cors';
 import runRoutes from './routes/runRoutes.js';
 import streamRoutes from './routes/streamRoutes.js';
 import confirmRoutes from './routes/confirmRoutes.js';
@@ -9,6 +10,14 @@ import { startHeartbeat, stopHeartbeat } from './services/sseManager.js';
 import { getAllAgents } from './services/database.js';
 
 const app = express();
+
+app.use(cors({
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Last-Event-ID'],
+  credentials: true,
+}));
+
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
 export interface ITelemetryFrame {
-  type: "thinking" | "tool_start" | "viewport_update" | "action_required" | "complete";
+  type: "thinking" | "tool_start" | "viewport_update" | "action_required" | "complete" | "agent_message";
   message: string;
   timestamp: string;
   payload?: {
@@ -51,6 +51,9 @@ export function useRunStream(runId: string | null) {
     es.onerror = () => {
       if (es.readyState === EventSource.CLOSED) {
         setStatus("closed");
+      } else if (es.readyState === EventSource.CONNECTING) {
+        // Reconnecting — this is normal after a clean close
+        setStatus("connecting");
       } else {
         setStatus("error");
       }
@@ -68,7 +71,7 @@ export function useRunStream(runId: string | null) {
     };
 
     // Also listen for typed events
-    const types = ["thinking", "tool_start", "viewport_update", "action_required", "complete"] as const;
+    const types = ["thinking", "tool_start", "viewport_update", "action_required", "complete", "agent_message"] as const;
     for (const type of types) {
       es.addEventListener(type, ((e: MessageEvent) => {
         try {
@@ -80,6 +83,16 @@ export function useRunStream(runId: string | null) {
         }
       }) as EventListener);
     }
+
+    // ── Close event: server signals the run is done ───────────────────────
+    // This prevents the "ERR_INCOMPLETE_CHUNKED_ENCODING" error by cleanly
+    // closing the connection instead of letting it drop.
+    es.addEventListener("close", () => {
+      // Run is terminal — close cleanly, no auto-reconnect
+      es.close();
+      eventSourceRef.current = null;
+      setStatus("closed");
+    });
 
     return () => {
       es.close();

@@ -9,14 +9,14 @@ vi.mock('../../src/services/database.js', () => ({
   }),
 }));
 
-// Mock Anthropic SDK
-vi.mock('@anthropic-ai/sdk', () => {
+// Mock OpenAI SDK (used via DigitalOcean Inference)
+vi.mock('openai', () => {
   const mockCreate = vi.fn().mockResolvedValue({
-    content: [{ type: 'text', text: 'User booked Grand Hyatt Seattle for $180/night.' }],
+    choices: [{ message: { content: 'User booked Grand Hyatt Seattle for $180/night.' } }],
   });
   return {
-    default: class MockAnthropic {
-      messages = { create: mockCreate };
+    default: class MockOpenAI {
+      chat = { completions: { create: mockCreate } };
     },
   };
 });
