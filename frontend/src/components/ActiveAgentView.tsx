@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { ArrowLeft, CircleCheck, Loader2, XCircle, Send } from "lucide-react";
+import { ArrowLeft, CircleCheck, Loader2, XCircle } from "lucide-react";
 import type { Agent } from "../data/agents";
 import { StatusRing } from "./StatusRing";
-import { TelemetryLog } from "./TelemetryLog";
+import { TelemetryStatusBar } from "./TelemetryStatusBar";
 import { ViewportPanel } from "./ViewportPanel";
+import { FloatingAgentChat } from "./FloatingAgentChat";
 import { GuardrailModal } from "./GuardrailModal";
 import { useRunStream } from "../lib/useRunStream";
 import { startRun, confirmRun, replyToAgent } from "../lib/api";
@@ -20,7 +21,6 @@ const DEFAULT_PROMPTS: Record<string, string> = {
   "travel-concierge": "Plan a 3-day trip to Portland under $1500",
 };
 
-// Map run status from telemetry frames to a display status
 function deriveRunStatus(events: { type: string }[]): "idle" | "running" | "attention" {
   if (events.length === 0) return "running";
   const last = events[events.length - 1];
@@ -37,7 +37,6 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
   const [reply, setReply] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<Array<{ role: "user" | "agent"; message: string }>>([]);
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { events } = useRunStream(runId);
   const Icon = agent.icon;
@@ -59,11 +58,6 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
       });
     }
   }, [events]);
-
-  // Auto-scroll chat
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatHistory]);
 
   const isWaitingForReply = events.some((e) => e.type === "agent_message") &&
     !events.some((e) => e.type === "complete") &&
@@ -92,208 +86,217 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
     try {
       await confirmRun(runId, decision);
       setGuardrail(decision === "authorize" ? "authorized" : "dismissed");
-    } catch (err: any) {
-      // If the API call fails, still update UI optimistically
+    } catch {
       setGuardrail(decision === "authorize" ? "authorized" : "dismissed");
     }
   }, [runId]);
 
-  const handleReply = useCallback(async () => {
-    if (!runId || !reply.trim()) return;
-    const userReply = reply.trim();
-    setReply("");
+  const handleReply = useCallback((userReply: string) => {
+    if (!runId || !userReply.trim()) return;
     setChatHistory((prev) => [...prev, { role: "user", message: userReply }]);
-    try {
-      await replyToAgent(runId, userReply);
-    } catch (err: any) {
+    replyToAgent(runId, userReply).catch((err: any) => {
       setError(err.message ?? "Failed to send reply");
-    }
-  }, [runId, reply]);
+    });
+  }, [runId]);
 
-  // Derive display status from live events
   const displayStatus = runPhase === "running"
     ? deriveRunStatus(events)
     : runPhase === "starting" ? "running" as const
     : agent.status;
 
+  const isRunning = runPhase === "running" || runPhase === "starting";
+
   return (
-    <div className="flex h-full flex-1 flex-col px-10 py-8">
-      {/* ── Header ──────────────────────────────────────────────────── */}
-      <div className="mb-6 flex items-center justify-between animate-rise">
-        <div className="flex items-center gap-4">
+    <div className="relative flex h-full flex-1 flex-col overflow-hidden">
+      {/* ── Header (compact, always visible) ─────────────────────────── */}
+      <div className="relative z-30 flex items-center justify-between border-b border-border/20 bg-obsidian/60 px-5 py-3 backdrop-blur-xl">
+        <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-hairline)] text-[var(--color-bone-dim)] transition-colors hover:border-[var(--color-hairline-strong)] hover:text-[var(--color-bone)]"
+            className="btn-secondary-glass flex h-8 w-8 items-center justify-center rounded-full border border-border/40 text-muted-foreground transition-all duration-200 hover:border-brass/25 hover:text-foreground"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={14} />
           </button>
           <div
-            className="flex h-11 w-11 items-center justify-center rounded-[13px] border"
-            style={{ backgroundColor: `${agent.accent}14`, borderColor: `${agent.accent}33` }}
+            className="relative flex h-9 w-9 items-center justify-center rounded-[11px] border backdrop-blur-sm"
+            style={{
+              backgroundColor: `${agent.accent}10`,
+              borderColor: `${agent.accent}28`,
+            }}
           >
-            <Icon size={20} strokeWidth={1.6} style={{ color: agent.accent }} />
+            <Icon size={17} strokeWidth={1.6} style={{ color: agent.accent }} />
           </div>
           <div>
-            <h1 className="font-display text-[22px] font-medium leading-tight text-[var(--color-bone)]">
+            <h1 className="font-display text-[16px] leading-tight font-medium text-bone">
               {agent.name}
             </h1>
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-bone-faint)]">
+            <p className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">
               {runId ? `Session · ${runId.slice(0, 8)}` : "No active session"}
             </p>
           </div>
         </div>
+
+        {/* Telemetry status bar (center) */}
+        {isRunning && (
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <TelemetryStatusBar events={events} />
+          </div>
+        )}
+
         <StatusRing status={guardrail === "authorized" ? "idle" : displayStatus} />
       </div>
 
-      {/* ── Prompt input ────────────────────────────────────────────── */}
-      {runPhase === "idle" || runPhase === "failed" ? (
-        <div className="mb-5 animate-rise">
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleStart()}
-              placeholder="Tell the agent what to do..."
-              className="flex-1 rounded-[12px] border border-[var(--color-hairline)] bg-[var(--color-panel)] px-4 py-3 font-mono text-[13px] text-[var(--color-bone)] placeholder:text-[var(--color-bone-faint)] focus:border-[var(--color-brass)] focus:outline-none"
-            />
-            <button
-              onClick={handleStart}
-              disabled={!prompt.trim()}
-              className="flex items-center gap-2 rounded-[12px] bg-gradient-to-b from-[var(--color-brass)] to-[var(--color-brass-bright)] px-5 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#241a0c] transition-opacity hover:opacity-90 disabled:opacity-40"
-            >
-              Run
-            </button>
-          </div>
-          {error && (
-            <p className="mt-2 font-mono text-[11px] text-[var(--color-coral-signal)]">{error}</p>
-          )}
-        </div>
-      ) : runPhase === "starting" ? (
-        <div className="mb-5 flex items-center gap-3 rounded-[12px] border border-[var(--color-hairline)] bg-[var(--color-panel)] px-4 py-3">
-          <Loader2 size={16} className="animate-spin text-[var(--color-brass)]" />
-          <span className="font-mono text-[12px] text-[var(--color-bone-dim)]">Starting run...</span>
-        </div>
-      ) : null}
+      {/* ── Content area ─────────────────────────────────────────────── */}
+      {isRunning ? (
+        /* Full-screen browser viewport when running */
+        <div className="relative flex-1">
+          <ViewportPanel
+            screenshotUrl={events.find((e) => e.payload?.screenshotUrl)?.payload?.screenshotUrl}
+            fullScreen
+          />
 
-      {/* ── Chat interface ──────────────────────────────────────────── */}
-      {runPhase === "running" && (chatHistory.length > 0 || isWaitingForReply) && (
-        <div className="mb-5 rounded-[12px] border border-[var(--color-hairline)] bg-[var(--color-panel)] p-4">
-          <div className="max-h-48 overflow-y-auto space-y-3 mb-3">
-            {chatHistory.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] rounded-[10px] px-3 py-2 text-[13px] ${
-                  msg.role === "user"
-                    ? "bg-[var(--color-brass)] text-[#241a0c]"
-                    : "bg-[var(--color-panel-raised)] text-[var(--color-bone)]"
-                }`}>
-                  {msg.message}
+          {/* Guardrail modal */}
+          {hasGuardrail && guardrail === "pending" && !isComplete && (
+            <GuardrailModal
+              open={true}
+              runId={runId}
+              payload={guardrailPayload}
+              onCancel={() => handleGuardrailConfirm("cancel")}
+              onAuthorize={() => handleGuardrailConfirm("authorize")}
+            />
+          )}
+
+          {/* Authorization confirmed overlay */}
+          {guardrail === "authorized" && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-obsidian/80 backdrop-blur-md">
+              <div className="glass-panel animate-rise flex flex-col items-center gap-4 rounded-[18px] border border-phosphor/15 px-8 py-7 text-center shadow-[0_0_40px_rgba(125,255,176,0.08)]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-phosphor/10">
+                  <CircleCheck size={24} className="text-[var(--color-phosphor)]" />
                 </div>
+                <p className="font-display text-[17px] text-[var(--color-bone)]">
+                  {lastEvent?.message ?? "Booking confirmed"}
+                </p>
+                <p className="max-w-[240px] text-[12.5px] leading-relaxed text-[var(--color-bone-dim)]">
+                  Episodic memory will store this transaction for future {agent.name} runs.
+                </p>
               </div>
-            ))}
-            <div ref={chatEndRef} />
-          </div>
-          {isWaitingForReply && (
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleReply()}
-                placeholder="Type your reply..."
-                className="flex-1 rounded-[10px] border border-[var(--color-hairline)] bg-[var(--color-panel)] px-3 py-2 text-[13px] text-[var(--color-bone)] placeholder:text-[var(--color-bone-faint)] focus:border-[var(--color-brass)] focus:outline-none"
-              />
-              <button
-                onClick={handleReply}
-                disabled={!reply.trim()}
-                className="flex items-center gap-1 rounded-[10px] bg-[var(--color-brass)] px-3 py-2 text-[12px] text-[#241a0c] transition-opacity hover:opacity-90 disabled:opacity-40"
-              >
-                <Send size={14} />
-              </button>
             </div>
           )}
+
+          {/* Run complete overlay */}
+          {isComplete && guardrail !== "authorized" && !hasGuardrail && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-obsidian/80 backdrop-blur-md">
+              <div className="glass-panel animate-rise flex flex-col items-center gap-4 rounded-[18px] border border-phosphor/15 px-8 py-7 text-center shadow-[0_0_40px_rgba(125,255,176,0.08)]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-phosphor/10">
+                  <CircleCheck size={24} className="text-[var(--color-phosphor)]" />
+                </div>
+                <p className="font-display text-[17px] text-[var(--color-bone)]">
+                  {lastEvent?.message ?? "Task complete"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Failed overlay */}
+          {isFailed && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-obsidian/80 backdrop-blur-md">
+              <div className="glass-panel animate-rise flex flex-col items-center gap-4 rounded-[18px] border border-coral-signal/25 px-8 py-7 text-center shadow-[0_0_40px_rgba(255,92,77,0.08)]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-coral-signal/10">
+                  <XCircle size={24} className="text-[var(--color-coral-signal)]" />
+                </div>
+                <p className="font-display text-[17px] text-[var(--color-bone)]">
+                  {lastEvent?.message ?? "Run failed"}
+                </p>
+                <button
+                  onClick={() => { setRunPhase("idle"); setRunId(null); setGuardrail("pending"); setChatHistory([]); }}
+                  className="btn-secondary-glass mt-1 rounded-[10px] border border-border/40 px-5 py-2 font-mono text-[11px] text-[var(--color-bone-dim)] transition-colors hover:border-brass/20 hover:text-[var(--color-bone)]"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* User-cancelled overlay */}
+          {guardrail === "dismissed" && !isComplete && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-obsidian/80 backdrop-blur-md">
+              <div className="glass-panel animate-rise flex flex-col items-center gap-4 rounded-[18px] border border-border/30 px-8 py-7 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/5">
+                  <XCircle size={24} className="text-[var(--color-bone-dim)]" />
+                </div>
+                <p className="font-display text-[17px] text-[var(--color-bone)]">
+                  Execution cancelled
+                </p>
+                <button
+                  onClick={() => { setRunPhase("idle"); setRunId(null); setGuardrail("pending"); setChatHistory([]); }}
+                  className="btn-secondary-glass mt-1 rounded-[10px] border border-border/40 px-5 py-2 font-mono text-[11px] text-[var(--color-bone-dim)] transition-colors hover:border-brass/20 hover:text-[var(--color-bone)]"
+                >
+                  Run again
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Idle / Failed state — centered prompt input */
+        <div className="flex flex-1 items-center justify-center px-8">
+          <div className="w-full max-w-lg animate-rise">
+            <div className="mb-6 text-center">
+              <div
+                className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[18px] border backdrop-blur-sm"
+                style={{
+                  backgroundColor: `${agent.accent}10`,
+                  borderColor: `${agent.accent}28`,
+                  boxShadow: `0 0 30px ${agent.accent}15`,
+                }}
+              >
+                <Icon size={28} strokeWidth={1.4} style={{ color: agent.accent }} />
+              </div>
+              <h2 className="font-display text-[20px] font-medium text-bone">{agent.name}</h2>
+              <p className="mt-1 font-mono text-[11px] text-bone-faint/60">
+                Ready to assist you
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleStart()}
+                  placeholder="Tell the agent what to do..."
+                  className="glass-input w-full rounded-[12px] px-4 py-3 font-mono text-[13px] text-foreground placeholder:text-muted-foreground/50 transition-all duration-200 focus:shadow-[0_0_20px_rgba(204,154,78,0.08)]"
+                />
+              </div>
+              <button
+                onClick={handleStart}
+                disabled={!prompt.trim()}
+                className="btn-primary-glass flex items-center gap-2 rounded-[12px] px-5 py-3 font-mono text-[11px] tracking-[0.14em] text-primary-foreground uppercase transition-all duration-200 hover:opacity-90 hover:shadow-[0_4px_16px_rgba(204,154,78,0.2)] disabled:opacity-40"
+              >
+                Run
+              </button>
+            </div>
+            {error && (
+              <p className="mt-2.5 flex items-center gap-1.5 font-mono text-[11px] text-[var(--color-coral-signal)]">
+                <span className="inline-block h-1 w-1 rounded-full bg-[var(--color-coral-signal)]" />
+                {error}
+              </p>
+            )}
+          </div>
         </div>
       )}
 
-      {/* ── Main content ────────────────────────────────────────────── */}
-      <div className="relative grid min-h-0 flex-1 grid-cols-1 gap-5 lg:grid-cols-2">
-        <TelemetryLog events={events} />
-        <ViewportPanel screenshotUrl={events.find((e) => e.payload?.screenshotUrl)?.payload?.screenshotUrl} />
-
-        {/* Guardrail modal */}
-        {runPhase === "running" && hasGuardrail && guardrail === "pending" && !isComplete && (
-          <GuardrailModal
-            open={true}
-            runId={runId}
-            payload={guardrailPayload}
-            onCancel={() => handleGuardrailConfirm("cancel")}
-            onAuthorize={() => handleGuardrailConfirm("authorize")}
-          />
-        )}
-
-        {/* Authorization confirmed overlay */}
-        {guardrail === "authorized" && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050403]/70 backdrop-blur-sm">
-            <div className="animate-rise flex flex-col items-center gap-3 rounded-[18px] border border-[var(--color-phosphor-dim)]/50 bg-[var(--color-panel-raised)] px-8 py-7 text-center">
-              <CircleCheck size={28} className="text-[var(--color-phosphor)]" />
-              <p className="font-display text-[17px] text-[var(--color-bone)]">
-                {lastEvent?.message ?? "Booking confirmed"}
-              </p>
-              <p className="max-w-[240px] text-[12.5px] text-[var(--color-bone-dim)]">
-                Episodic memory will store this transaction for future {agent.name} runs.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Run complete overlay (non-guardrail) */}
-        {isComplete && guardrail !== "authorized" && !hasGuardrail && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050403]/70 backdrop-blur-sm">
-            <div className="animate-rise flex flex-col items-center gap-3 rounded-[18px] border border-[var(--color-phosphor-dim)]/50 bg-[var(--color-panel-raised)] px-8 py-7 text-center">
-              <CircleCheck size={28} className="text-[var(--color-phosphor)]" />
-              <p className="font-display text-[17px] text-[var(--color-bone)]">
-                {lastEvent?.message ?? "Task complete"}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Failed overlay */}
-        {isFailed && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050403]/70 backdrop-blur-sm">
-            <div className="animate-rise flex flex-col items-center gap-3 rounded-[18px] border border-[var(--color-coral-signal)]/30 bg-[var(--color-panel-raised)] px-8 py-7 text-center">
-              <XCircle size={28} className="text-[var(--color-coral-signal)]" />
-              <p className="font-display text-[17px] text-[var(--color-bone)]">
-                {lastEvent?.message ?? "Run failed"}
-              </p>
-              <button
-                onClick={() => { setRunPhase("idle"); setRunId(null); setGuardrail("pending"); }}
-                className="mt-2 rounded-[10px] border border-[var(--color-hairline)] px-4 py-2 font-mono text-[11px] text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]"
-              >
-                Try again
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* User-cancelled overlay */}
-        {guardrail === "dismissed" && !isComplete && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#050403]/70 backdrop-blur-sm">
-            <div className="animate-rise flex flex-col items-center gap-3 rounded-[18px] border border-[var(--color-hairline)] bg-[var(--color-panel-raised)] px-8 py-7 text-center">
-              <XCircle size={28} className="text-[var(--color-bone-dim)]" />
-              <p className="font-display text-[17px] text-[var(--color-bone)]">
-                Execution cancelled
-              </p>
-              <button
-                onClick={() => { setRunPhase("idle"); setRunId(null); setGuardrail("pending"); }}
-                className="mt-2 rounded-[10px] border border-[var(--color-hairline)] px-4 py-2 font-mono text-[11px] text-[var(--color-bone-dim)] hover:text-[var(--color-bone)]"
-              >
-                Run again
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* ── Floating Chat (bottom-left, only when running) ──────────── */}
+      {isRunning && (
+        <FloatingAgentChat
+          chatHistory={chatHistory}
+          isWaitingForReply={isWaitingForReply}
+          onSendReply={handleReply}
+          agentName={agent.name}
+          agentAccent={agent.accent}
+        />
+      )}
     </div>
   );
 }

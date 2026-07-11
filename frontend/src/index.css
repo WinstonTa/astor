@@ -2,8 +2,18 @@
 
 @theme {
   --font-display: "Fraunces", "Iowan Old Style", serif;
+  --font-serif: "Fraunces", "Iowan Old Style", serif;
   --font-sans: "Instrument Sans", -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+
+  --color-background: #0b0a09;
+  --color-foreground: #f2ead9;
+  --color-primary: #cc9a4e;
+  --color-primary-foreground: #0b0a09;
+  --color-muted-foreground: #b9b0a0;
+  --color-card: #171513;
+  --color-card-foreground: #f2ead9;
+  --color-border: rgba(240, 232, 220, 0.09);
 
   --color-obsidian: #0b0a09;
   --color-obsidian-2: #131110;
@@ -99,4 +109,106 @@ body {
 .scroll-brass::-webkit-scrollbar-thumb {
   background: var(--color-hairline-strong);
   border-radius: 4px;
+}
+
+/* ── Landing + app glass system ─────────────────────────────────────────── */
+
+@keyframes shimmer {
+  0% { background-position: 200% center; }
+  100% { background-position: 0% center; }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 25s linear infinite;
+}
+
+.tahoe-glass-text {
+  color: transparent;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 255, 255, 0.4) 25%,
+    rgba(255, 255, 255, 0.1) 45%,
+    rgba(255, 255, 255, 0.9) 55%,
+    rgba(255, 255, 255, 0.2) 75%,
+    rgba(255, 255, 255, 1) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.3);
+  filter: drop-shadow(0 15px 35px rgba(0, 0, 0, 0.4)) drop-shadow(0 5px 10px rgba(0, 0, 0, 0.2));
+  animation: shimmer 8s linear infinite;
+}
+
+.tahoe-glass-heading {
+  color: transparent;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.55) 30%,
+    rgba(255, 255, 255, 0.85) 55%,
+    rgba(255, 255, 255, 0.45) 80%,
+    rgba(255, 255, 255, 0.9) 100%
+  );
+  background-size: 180% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-stroke: 0.75px rgba(255, 255, 255, 0.18);
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.25));
+  animation: shimmer 12s linear infinite;
+}
+
+.glass-panel {
+  border: 1px solid rgba(240, 232, 220, 0.1);
+  background: linear-gradient(180deg, rgba(23, 21, 19, 0.72) 0%, rgba(23, 21, 19, 0.55) 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.05),
+    0 2px 8px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(14px);
+}
+
+.glass-panel-hover:hover {
+  border-color: rgba(240, 232, 220, 0.16);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.07),
+    0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.glass-sidebar {
+  border-right: 1px solid rgba(240, 232, 220, 0.08);
+  background: linear-gradient(180deg, rgba(11, 10, 9, 0.82) 0%, rgba(19, 17, 16, 0.78) 100%);
+  backdrop-filter: blur(20px);
+}
+
+.btn-primary-glass {
+  background: linear-gradient(180deg, rgba(204, 154, 78, 0.92) 0%, rgba(204, 154, 78, 1) 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.15),
+    0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.btn-secondary-glass {
+  background: linear-gradient(180deg, rgba(23, 21, 19, 0.75) 0%, rgba(23, 21, 19, 0.9) 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.08),
+    0 2px 4px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.glass-input {
+  border: 1px solid rgba(240, 232, 220, 0.1);
+  background: rgba(23, 21, 19, 0.55);
+  backdrop-filter: blur(10px);
+}
+
+.glass-input:focus {
+  border-color: rgba(204, 154, 78, 0.45);
+  outline: none;
 }

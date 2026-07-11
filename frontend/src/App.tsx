@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { PixelHero } from "@/components/ui/pixel-perfect-hero";
+import { AppBackground } from "@/components/AppBackground";
 import { Sidebar, type ViewId } from "./components/Sidebar";
 import { MarketplaceGrid } from "./components/MarketplaceGrid";
 import { ActiveAgentView } from "./components/ActiveAgentView";
@@ -9,6 +11,7 @@ import { agents as fallbackAgents, mapApiAgent, type Agent } from "./data/agents
 import { fetchAgents } from "./lib/api";
 
 export default function App() {
+  const [showLanding, setShowLanding] = useState(true);
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const [view, setView] = useState<ViewId>("grid");
   const [agents, setAgents] = useState<Agent[]>(fallbackAgents);
@@ -27,23 +30,42 @@ export default function App() {
 
   const handleNavigate = (id: ViewId) => {
     setView(id);
-    setActiveAgentId(null); // close agent view when navigating
+    setActiveAgentId(null);
   };
 
   const handleOpenAgent = (id: string) => {
     setActiveAgentId(id);
-    setView("grid"); // ensure we're on grid view context
+    setView("grid");
   };
 
   const handleBack = () => {
     setActiveAgentId(null);
   };
 
+  if (showLanding) {
+    return (
+      <PixelHero
+        word1="Agent"
+        word2="Deck."
+        description="A marketplace of specialist agents with isolated memory, live telemetry, and guardrails. Deploy your fleet and let each app handle what it does best."
+        primaryCta="Open Marketplace"
+        primaryCtaMobile="Open"
+        secondaryCta="View GitHub"
+        secondaryCtaMobile="GitHub"
+        onPrimaryClick={() => setShowLanding(false)}
+        githubUrl="https://github.com/WinstonTa/astor"
+      />
+    );
+  }
+
   return (
-    <div className="bg-mesh flex h-screen w-screen overflow-hidden">
+    <div className="relative isolate flex h-screen w-screen overflow-hidden bg-background">
+      <div className="pointer-events-none absolute inset-0 z-0">
+        <AppBackground intensity="app" />
+      </div>
       <div className="grain-field" />
       <Sidebar active={activeAgentId ? "grid" : view} onNavigate={handleNavigate} />
-      <main className="relative flex min-w-0 flex-1 flex-col">
+      <main className="relative z-10 flex min-w-0 flex-1 flex-col">
         <AnimatePresence mode="wait">
           {activeAgent ? (
             <motion.div

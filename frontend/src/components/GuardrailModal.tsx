@@ -32,7 +32,7 @@ export function GuardrailModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="relative mx-6 w-full max-w-md overflow-hidden rounded-[18px] border border-[var(--color-coral-signal)]/40 bg-[var(--color-panel-raised)] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.7)]"
+            className="glass-panel relative mx-6 w-full max-w-md overflow-hidden rounded-[18px] border border-[var(--color-coral-signal)]/40 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.7)]"
           >
             <div className="h-[3px] w-full bg-gradient-to-r from-[var(--color-coral-signal)] via-[var(--color-amber-signal)] to-[var(--color-coral-signal)]" />
 
@@ -61,14 +61,14 @@ export function GuardrailModal({
               <div className="mt-1 flex flex-col-reverse gap-2.5 sm:flex-row">
                 <button
                   onClick={onCancel}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-[10px] border border-[var(--color-hairline-strong)] py-2.5 text-[12.5px] text-[var(--color-bone-dim)] transition-colors hover:bg-white/[0.04] hover:text-[var(--color-bone)]"
+                  className="btn-secondary-glass flex flex-1 items-center justify-center gap-2 rounded-[10px] border border-border/50 py-2.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <X size={14} />
                   Cancel Execution Loop
                 </button>
                 <button
                   onClick={onAuthorize}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-[10px] bg-gradient-to-b from-[var(--color-brass-bright)] to-[var(--color-brass)] py-2.5 text-[12.5px] font-medium text-[#241a0c] shadow-[0_1px_0_rgba(255,255,255,0.4)_inset] transition-transform hover:brightness-105 active:scale-[0.98]"
+                  className="btn-primary-glass flex flex-1 items-center justify-center gap-2 rounded-[10px] py-2.5 text-[12.5px] font-medium text-primary-foreground transition-transform hover:brightness-105 active:scale-[0.98]"
                 >
                   <Check size={14} />
                   Authorize &amp; Confirm Purchase

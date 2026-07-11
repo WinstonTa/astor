@@ -6,14 +6,22 @@ const RESULTS = [
   { name: "Kimpton Palladian", price: "$229", tag: "Rooftop bar" },
 ];
 
-export function ViewportPanel({ screenshotUrl }: { screenshotUrl?: string }) {
+export function ViewportPanel({ screenshotUrl, fullScreen }: { screenshotUrl?: string; fullScreen?: boolean }) {
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-[18px] border border-[var(--color-hairline-strong)] bg-[var(--color-panel)]">
-      <div className="flex items-center justify-between border-b border-[var(--color-hairline)] px-4 py-3">
-        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--color-bone-faint)]">
-          Live Agent Stream
-        </span>
-        <div className="flex items-center gap-1.5 rounded-full bg-[var(--color-coral-signal)]/10 px-2 py-1">
+    <div
+      className={`glass-panel relative flex h-full flex-col overflow-hidden ${
+        fullScreen ? "rounded-none" : "rounded-[18px]"
+      }`}
+    >
+      {/* Browser chrome */}
+      <div className="flex items-center gap-2 border-b border-hairline bg-panel px-3 py-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-bone-faint/20" />
+        <span className="h-2.5 w-2.5 rounded-full bg-bone-faint/20" />
+        <span className="h-2.5 w-2.5 rounded-full bg-bone-faint/20" />
+        <div className="ml-2 flex-1 rounded-[6px] bg-obsidian px-3 py-1 font-mono text-[10px] text-bone-faint/60">
+          {screenshotUrl ? "browserbase.live/session" : "expedia.com/hotels/seattle-wa/search?checkin=fri"}
+        </div>
+        <div className="flex items-center gap-1.5 rounded-full border border-coral-signal/15 bg-coral-signal/8 px-2 py-1">
           <Circle size={7} className="fill-[var(--color-coral-signal)] text-[var(--color-coral-signal)]" />
           <span className="font-mono text-[10px] tracking-[0.1em] text-[var(--color-coral-signal)]">
             REC · REMOTE
@@ -21,18 +29,8 @@ export function ViewportPanel({ screenshotUrl }: { screenshotUrl?: string }) {
         </div>
       </div>
 
-      <div className="relative flex-1 overflow-hidden bg-[#141210]">
-        {/* mock remote browser chrome */}
-        <div className="flex items-center gap-2 border-b border-black/40 bg-[#1c1a17] px-3 py-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#4a453d]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#4a453d]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#4a453d]" />
-          <div className="ml-2 flex-1 rounded-[6px] bg-[#0f0d0b] px-3 py-1 font-mono text-[10px] text-[var(--color-bone-faint)]">
-            {screenshotUrl ? "browserbase.live/session" : "expedia.com/hotels/seattle-wa/search?checkin=fri"}
-          </div>
-        </div>
-
-        {/* Live screenshot or mock hotel results */}
+      {/* Content area */}
+      <div className="relative flex-1 overflow-hidden bg-obsidian-2">
         {screenshotUrl ? (
           <div className="relative h-full w-full">
             <img
@@ -40,12 +38,10 @@ export function ViewportPanel({ screenshotUrl }: { screenshotUrl?: string }) {
               alt="Live agent viewport"
               className="h-full w-full object-contain"
             />
-            {/* scanline overlay on real screenshot too */}
             <div className="animate-scanline pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-transparent via-[var(--color-phosphor)]/10 to-transparent" />
           </div>
         ) : (
           <>
-            {/* mock hotel search results */}
             <div className="flex flex-col gap-2.5 p-4">
               <div className="mb-1 h-2 w-40 rounded bg-[var(--color-bone-faint)]/20" />
               {RESULTS.map((r) => (
@@ -75,14 +71,12 @@ export function ViewportPanel({ screenshotUrl }: { screenshotUrl?: string }) {
               ))}
             </div>
 
-            {/* simulated cursor */}
             <MousePointer2
               size={16}
               className="absolute text-[var(--color-brass-bright)] drop-shadow-[0_0_6px_rgba(232,185,106,0.8)]"
               style={{ top: "42%", left: "58%" }}
             />
 
-            {/* grid overlay */}
             <div
               className="pointer-events-none absolute inset-0 opacity-[0.14]"
               style={{

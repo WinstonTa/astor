@@ -61,17 +61,17 @@ export function TelemetryLog({ events }: { events?: ITelemetryFrame[] }) {
   }, [rows.length]);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-[18px] border border-[var(--color-hairline-strong)] bg-[#08110c]">
-      <div className="flex items-center justify-between border-b border-white/5 bg-[#0b1510] px-4 py-3">
+    <div className="glass-panel flex h-full flex-col overflow-hidden rounded-[18px]">
+      <div className="flex items-center justify-between border-b border-hairline bg-panel-raised/50 px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-[var(--color-coral-signal)]" />
           <span className="h-2 w-2 rounded-full bg-[var(--color-amber-signal)]" />
           <span className="h-2 w-2 rounded-full bg-[var(--color-phosphor)]" />
-          <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--color-phosphor-dim)]">
+          <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.16em] text-bone-faint">
             Agent Telemetry Log
           </span>
         </div>
-        <span className="font-mono text-[10px] text-[var(--color-phosphor-dim)]">
+        <span className="font-mono text-[10px] text-bone-faint/60">
           {events && events.length > 0 ? `live · ${events.length} frames` : "mock preview"}
         </span>
       </div>

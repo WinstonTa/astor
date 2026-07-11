@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Pencil, Check, X, Loader2, BookOpenText } from "lucide-react";
+import { PageHeader } from "./PageHeader";
 import { fetchCommons, updateCommonsFact, type ApiCommonsFact } from "../lib/api";
 
 export function CommonsView() {
@@ -42,19 +43,13 @@ export function CommonsView() {
   }, [editText]);
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto scroll-brass px-10 py-10">
-      <header className="mb-8 flex flex-col gap-2 animate-rise">
-        <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--color-brass-bright)]">
-          Information Commons
-        </span>
-        <h1 className="font-display text-[32px] font-medium text-[var(--color-bone)]">
-          Shared preferences, across all agents.
-        </h1>
-        <p className="max-w-xl text-[14px] leading-relaxed text-[var(--color-bone-dim)]">
-          These facts hydrate every agent run. Your loyalty status, address, dietary needs —
-          anything any agent should know about you.
-        </p>
-      </header>
+    <div className="flex flex-1 flex-col overflow-y-auto scroll-brass px-8 py-10 sm:px-10">
+      <PageHeader
+        eyebrow="Information Commons"
+        titleSerif="Shared preferences,"
+        titleSans="across all agents."
+        description="These facts hydrate every agent run. Your loyalty status, address, dietary needs — anything any agent should know about you."
+      />
 
       {loading ? (
         <div className="flex items-center gap-3 py-12">
@@ -62,7 +57,7 @@ export function CommonsView() {
           <span className="font-mono text-[12px] text-[var(--color-bone-dim)]">Loading commons...</span>
         </div>
       ) : error ? (
-        <div className="rounded-[14px] border border-[var(--color-coral-signal)]/30 bg-[var(--color-panel)] px-5 py-4">
+        <div className="rounded-[14px] border border-[var(--color-coral-signal)]/30 glass-panel px-5 py-4">
           <p className="font-mono text-[12px] text-[var(--color-coral-signal)]">{error}</p>
         </div>
       ) : facts.length === 0 ? (
@@ -78,7 +73,7 @@ export function CommonsView() {
           {facts.map((fact, i) => (
             <div
               key={fact.id}
-              className="animate-rise group flex items-start gap-4 rounded-[14px] border border-[var(--color-hairline)] bg-[var(--color-panel)] px-5 py-4 transition-colors hover:border-[var(--color-hairline-strong)]"
+              className="glass-panel glass-panel-hover animate-rise group flex items-start gap-4 rounded-[14px] px-5 py-4 transition-all duration-300"
               style={{ animationDelay: `${i * 0.06 + 0.1}s`, animationFillMode: "backwards" }}
             >
               <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-[var(--color-brass)]/10">
