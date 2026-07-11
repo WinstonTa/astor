@@ -31,7 +31,7 @@ vi.mock('../../src/services/sseManager.js', () => ({
   broadcast: vi.fn(),
 }));
 
-vi.mock('../../src/services/mockToolExecutor.js', () => ({
+vi.mock('../../src/tools/browserCore.js', () => ({
   executeBrowserTask: vi.fn().mockImplementation(async (_inv, hooks) => {
     hooks.onFrame({
       type: 'tool_start',
@@ -49,7 +49,7 @@ vi.mock('../../src/services/mockToolExecutor.js', () => ({
   }),
 }));
 
-const { startRun, resolveGuardrail, cancelRun } = await import('../../src/services/orchestrator.js');
+const { startRun, cancelRun } = await import('../../src/services/orchestrator.js');
 const { getRunById, getAgentById, updateRunStatus, insertRunEvent } = await import('../../src/services/database.js');
 const { think, continueWithToolResult } = await import('../../src/services/llmClient.js');
 const { writeMemory } = await import('../../src/services/memoryWriter.js');
@@ -153,11 +153,6 @@ describe('orchestrator', () => {
     await startRun('run-err');
 
     expect(updateRunStatus).toHaveBeenCalledWith('run-err', 'FAILED', undefined);
-  });
-
-  it('resolveGuardrail returns false for unknown runId', () => {
-    const result = resolveGuardrail('nonexistent', 'authorize');
-    expect(result).toBe(false);
   });
 
   it('cancelRun returns false for unknown runId', () => {

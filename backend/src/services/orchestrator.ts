@@ -14,8 +14,8 @@ import {
   getAgentById,
 } from './database.js';
 import { getToolsForAgent } from './toolRegistry.js';
-// Day 1: use mock. Day 5 swap to: import { executeBrowserTask } from '../tools/browserCore.js';
-import { executeBrowserTask } from './mockToolExecutor.js';
+// Day 5 handshake: swapped from mockToolExecutor → Person B's real Browserbase runtime
+import { executeBrowserTask } from '../tools/browserCore.js';
 
 type RunStatus =
   | 'QUEUED' | 'HYDRATING' | 'THINKING' | 'EXECUTING_TOOL'
@@ -25,11 +25,11 @@ type RunStatus =
 // ── Active run tracking ───────────────────────────────────────────────────
 const activeRuns = new Map<string, { abort: () => void }>();
 
-// ── Guardrail promise registry ────────────────────────────────────────────
-const guardrailResolvers = new Map<string, {
-  resolve: (decision: 'authorize' | 'cancel') => void;
-  timeout: ReturnType<typeof setTimeout>;
-}>();
+// ── Tool-to-URL mapping for browser automation ────────────────────────────
+const TOOL_TARGETS: Record<string, string> = {
+  search_hotels: 'https://www.expedia.com',
+  book_hotel: 'https://www.expedia.com',
+};
 
 /**
  * Kick off a run asynchronously. Returns immediately; the run streams via SSE.
@@ -73,27 +73,18 @@ export async function startRun(runId: string): Promise<void> {
       // ── EXECUTING_TOOL ───────────────────────────────────────────
       await transition(runId, 'EXECUTING_TOOL', `Executing tool: ${decision.toolName}...`, hooks);
 
+      // Map LLM tool call to Person B's IBrowserToolInvocation
       const invocation: IBrowserToolInvocation = {
         runId,
-        targetUrl: 'https://www.expedia.com',
+        targetUrl: TOOL_TARGETS[decision.toolName!] ?? 'https://www.expedia.com',
         browserbaseContextId: '',
         searchParameters: extractSearchParameters(decision.toolInput),
       };
 
+      // Person B's executeBrowserTask handles guardrails internally:
+      // expediaMacro.ts calls requestAuthorization() which emits action_required
+      // and waits for resolveAuthorization() via POST /api/agent/confirm
       const result = await executeBrowserTask(invocation, hooks);
-
-      if (result.status === 'GUARDRAIL_TRIGGERED') {
-        // ── AWAITING_CONFIRMATION ──────────────────────────────────
-        await transition(runId, 'AWAITING_CONFIRMATION', 'Transaction requires user confirmation.', hooks, {
-          guardrail_payload: result.scrapedData,
-        });
-
-        const userDecision = await waitForGuardrailDecision(runId);
-        if (userDecision === 'cancel') {
-          return await fail(runId, 'User cancelled the transaction.', hooks);
-        }
-        // If authorized, continue — the tool result already has the data
-      }
 
       if (result.status === 'FAILED') {
         return await fail(runId, result.errorMessage ?? 'Tool execution failed.', hooks);
@@ -136,18 +127,6 @@ export async function startRun(runId: string): Promise<void> {
 }
 
 /**
- * Resolve a guardrail decision from POST /api/agent/confirm.
- */
-export function resolveGuardrail(runId: string, decision: 'authorize' | 'cancel'): boolean {
-  const entry = guardrailResolvers.get(runId);
-  if (!entry) return false;
-  clearTimeout(entry.timeout);
-  entry.resolve(decision);
-  guardrailResolvers.delete(runId);
-  return true;
-}
-
-/**
  * Cancel an active run.
  */
 export function cancelRun(runId: string): boolean {
@@ -187,18 +166,6 @@ async function fail(runId: string, message: string, hooks: IRunHooks) {
 
 async function cancel(runId: string, hooks: IRunHooks) {
   await transition(runId, 'CANCELLED', 'Run was cancelled.', hooks);
-}
-
-function waitForGuardrailDecision(runId: string): Promise<'authorize' | 'cancel'> {
-  return new Promise((resolve) => {
-    // 10-minute timeout auto-cancels
-    const timeout = setTimeout(() => {
-      guardrailResolvers.delete(runId);
-      resolve('cancel');
-    }, 10 * 60 * 1000);
-
-    guardrailResolvers.set(runId, { resolve, timeout });
-  });
 }
 
 function createRunHooks(runId: string): IRunHooks {

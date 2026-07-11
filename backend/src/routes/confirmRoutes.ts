@@ -1,7 +1,8 @@
 // PERSON A — POST /api/agent/confirm
+// Now delegates to Person B's guardrailBridge instead of orchestrator's internal resolver
 import { Router } from 'express';
 import { z } from 'zod';
-import { resolveGuardrail } from '../services/orchestrator.js';
+import { guardrailBridge } from '../tools/guardrails.js';
 
 const router = Router();
 
@@ -18,7 +19,7 @@ router.post('/confirm', async (req, res) => {
     }
 
     const { runId, decision } = parsed.data;
-    const resolved = resolveGuardrail(runId, decision);
+    const resolved = guardrailBridge.resolveAuthorization(runId, decision);
 
     if (!resolved) {
       return res.status(404).json({ error: 'No pending guardrail for this run' });
