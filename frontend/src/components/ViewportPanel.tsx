@@ -1,0 +1,85 @@
+import { Circle, MousePointer2 } from "lucide-react";
+
+const RESULTS = [
+  { name: "Hotel Ändra", price: "$212", tag: "Boutique" },
+  { name: "The Paramount Hotel Seattle", price: "$185", tag: "Best match", highlight: true },
+  { name: "Kimpton Palladian", price: "$229", tag: "Rooftop bar" },
+];
+
+export function ViewportPanel() {
+  return (
+    <div className="relative flex h-full flex-col overflow-hidden rounded-[18px] border border-[var(--color-hairline-strong)] bg-[var(--color-panel)]">
+      <div className="flex items-center justify-between border-b border-[var(--color-hairline)] px-4 py-3">
+        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--color-bone-faint)]">
+          Live Agent Stream
+        </span>
+        <div className="flex items-center gap-1.5 rounded-full bg-[var(--color-coral-signal)]/10 px-2 py-1">
+          <Circle size={7} className="fill-[var(--color-coral-signal)] text-[var(--color-coral-signal)]" />
+          <span className="font-mono text-[10px] tracking-[0.1em] text-[var(--color-coral-signal)]">
+            REC · REMOTE
+          </span>
+        </div>
+      </div>
+
+      <div className="relative flex-1 overflow-hidden bg-[#141210]">
+        {/* mock remote browser chrome */}
+        <div className="flex items-center gap-2 border-b border-black/40 bg-[#1c1a17] px-3 py-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#4a453d]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#4a453d]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#4a453d]" />
+          <div className="ml-2 flex-1 rounded-[6px] bg-[#0f0d0b] px-3 py-1 font-mono text-[10px] text-[var(--color-bone-faint)]">
+            expedia.com/hotels/seattle-wa/search?checkin=fri
+          </div>
+        </div>
+
+        {/* mock hotel search results, standing in for the live automation feed */}
+        <div className="flex flex-col gap-2.5 p-4">
+          <div className="mb-1 h-2 w-40 rounded bg-[var(--color-bone-faint)]/20" />
+          {RESULTS.map((r) => (
+            <div
+              key={r.name}
+              className={`flex items-center gap-3 rounded-[10px] border p-2.5 transition-colors ${
+                r.highlight
+                  ? "border-[var(--color-brass)]/60 bg-[var(--color-brass)]/10"
+                  : "border-white/5 bg-white/[0.02]"
+              }`}
+            >
+              <div className="h-12 w-16 shrink-0 rounded-[6px] bg-gradient-to-br from-[#3a3630] to-[#221f1b]" />
+              <div className="flex flex-1 flex-col gap-1">
+                <span className="text-[12px] font-medium text-[var(--color-bone)]">{r.name}</span>
+                <span className="font-mono text-[10px] uppercase tracking-wide text-[var(--color-bone-faint)]">
+                  {r.tag}
+                </span>
+              </div>
+              <span
+                className={`font-mono text-[13px] ${
+                  r.highlight ? "text-[var(--color-brass-bright)]" : "text-[var(--color-bone-dim)]"
+                }`}
+              >
+                {r.price}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* simulated cursor implying an unattended automation session */}
+        <MousePointer2
+          size={16}
+          className="absolute text-[var(--color-brass-bright)] drop-shadow-[0_0_6px_rgba(232,185,106,0.8)]"
+          style={{ top: "42%", left: "58%" }}
+        />
+
+        {/* scanline sweep + grid overlay to read as a captured remote frame */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.14]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(125,255,176,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(125,255,176,0.5) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
+        <div className="animate-scanline pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-transparent via-[var(--color-phosphor)]/10 to-transparent" />
+      </div>
+    </div>
+  );
+}
