@@ -7,6 +7,7 @@ export interface ITelemetryFrame {
   timestamp: string;
   payload?: {
     screenshotUrl?: string;
+    liveViewUrl?: string;
     confirmationCardData?: {
       title: string;
       cost: string;

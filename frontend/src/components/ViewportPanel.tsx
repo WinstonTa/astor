@@ -6,7 +6,22 @@ const RESULTS = [
   { name: "Kimpton Palladian", price: "$229", tag: "Rooftop bar" },
 ];
 
-export function ViewportPanel({ screenshotUrl, fullScreen }: { screenshotUrl?: string; fullScreen?: boolean }) {
+export function ViewportPanel({
+  screenshotUrl,
+  liveViewUrl,
+  fullScreen,
+  frozen,
+}: {
+  screenshotUrl?: string;
+  liveViewUrl?: string;
+  fullScreen?: boolean;
+  /** When the run is terminal the live session is torn down; show the last
+   *  captured screenshot instead of the dead (white) live-view iframe. */
+  frozen?: boolean;
+}) {
+  // Prefer the interactive live view while the run is active; once terminal, the
+  // Browserbase session is gone, so fall back to the final screenshot.
+  const showLiveView = liveViewUrl && !frozen;
   return (
     <div
       className={`glass-panel relative flex h-full flex-col overflow-hidden ${
@@ -19,7 +34,7 @@ export function ViewportPanel({ screenshotUrl, fullScreen }: { screenshotUrl?: s
         <span className="h-2.5 w-2.5 rounded-full bg-bone-faint/20" />
         <span className="h-2.5 w-2.5 rounded-full bg-bone-faint/20" />
         <div className="ml-2 flex-1 rounded-[6px] bg-obsidian px-3 py-1 font-mono text-[10px] text-bone-faint/60">
-          {screenshotUrl ? "browserbase.live/session" : "expedia.com/hotels/seattle-wa/search?checkin=fri"}
+          {showLiveView ? "browserbase live view · interactive" : screenshotUrl ? "browserbase.live/session · final frame" : "booking.com/searchresults"}
         </div>
         <div className="flex items-center gap-1.5 rounded-full border border-coral-signal/15 bg-coral-signal/8 px-2 py-1">
           <Circle size={7} className="fill-[var(--color-coral-signal)] text-[var(--color-coral-signal)]" />
@@ -31,7 +46,16 @@ export function ViewportPanel({ screenshotUrl, fullScreen }: { screenshotUrl?: s
 
       {/* Content area */}
       <div className="relative flex-1 overflow-hidden bg-obsidian-2">
-        {screenshotUrl ? (
+        {showLiveView ? (
+          /* Interactive Browserbase Live View — real-time, clickable. The user
+             can dismiss popups or complete logins directly in the frame. */
+          <iframe
+            src={liveViewUrl}
+            title="Live agent browser"
+            className="h-full w-full border-0"
+            allow="clipboard-read; clipboard-write"
+          />
+        ) : screenshotUrl ? (
           <div className="relative h-full w-full">
             <img
               src={screenshotUrl}

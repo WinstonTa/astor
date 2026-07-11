@@ -10,4 +10,8 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Pre-bundle the markdown stack so a running dev server picks it up cleanly.
+  optimizeDeps: {
+    include: ["react-markdown", "remark-gfm"],
+  },
 });

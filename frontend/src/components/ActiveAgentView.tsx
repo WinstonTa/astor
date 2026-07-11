@@ -1,11 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { ArrowLeft, CircleCheck, Loader2, XCircle } from "lucide-react";
+import { ArrowLeft, CircleCheck, XCircle } from "lucide-react";
 import type { Agent } from "../data/agents";
 import { StatusRing } from "./StatusRing";
 import { TelemetryStatusBar } from "./TelemetryStatusBar";
 import { ViewportPanel } from "./ViewportPanel";
 import { FloatingAgentChat } from "./FloatingAgentChat";
-import { GuardrailModal } from "./GuardrailModal";
 import { useRunStream } from "../lib/useRunStream";
 import { startRun, confirmRun, replyToAgent } from "../lib/api";
 
@@ -34,28 +33,33 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
   const [runPhase, setRunPhase] = useState<RunPhase>("idle");
   const [runId, setRunId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState(DEFAULT_PROMPTS[agent.slug] ?? "");
-  const [reply, setReply] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<Array<{ role: "user" | "agent"; message: string }>>([]);
 
   const { events } = useRunStream(runId);
   const Icon = agent.icon;
 
-  const hasGuardrail = events.some((e) => e.type === "action_required");
   const isComplete = events.some((e) => e.type === "complete");
   const isFailed = events.some((e) => e.type === "complete" && e.message.toLowerCase().includes("fail"));
   const lastEvent = events[events.length - 1];
-  const guardrailPayload = events.find((e) => e.type === "action_required")?.payload;
+  // The real purchase confirmation carries confirmationCardData (from the guardrail);
+  // a plain action_required status frame does not.
+  const guardrailCard = events.find(
+    (e) => e.type === "action_required" && e.payload?.confirmationCardData,
+  )?.payload?.confirmationCardData;
+  const hasGuardrail = !!guardrailCard;
 
-  // Track agent messages and add to chat history
+  // Append new agent messages in arrival order so the chat reads top→bottom,
+  // interleaved correctly with the user's replies (which handleReply appends).
+  const processedAgentCount = useRef(0);
   useEffect(() => {
     const agentMessages = events.filter((e) => e.type === "agent_message");
-    const newMessages = agentMessages.map((e) => ({ role: "agent" as const, message: e.message }));
-    if (newMessages.length > 0) {
-      setChatHistory((prev) => {
-        const existing = prev.filter((m) => m.role === "user");
-        return [...existing, ...newMessages];
-      });
+    if (agentMessages.length > processedAgentCount.current) {
+      const fresh = agentMessages
+        .slice(processedAgentCount.current)
+        .map((e) => ({ role: "agent" as const, message: e.message }));
+      processedAgentCount.current = agentMessages.length;
+      setChatHistory((prev) => [...prev, ...fresh]);
     }
   }, [events]);
 
@@ -68,6 +72,8 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
     setRunPhase("starting");
     setError(null);
     setGuardrail("pending");
+    setChatHistory([]);
+    processedAgentCount.current = 0;
 
     try {
       const agentId = agent.dbId ?? agent.id;
@@ -105,6 +111,15 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
     : agent.status;
 
   const isRunning = runPhase === "running" || runPhase === "starting";
+  const isTerminal = isComplete || isFailed || guardrail === "dismissed";
+
+  const statusBanner: { kind: "success" | "error"; message: string } | null = isFailed
+    ? { kind: "error", message: lastEvent?.message ?? "Run failed" }
+    : guardrail === "dismissed" && !isComplete
+    ? { kind: "error", message: "Booking cancelled." }
+    : isComplete
+    ? { kind: "success", message: lastEvent?.message ?? "Task complete." }
+    : null;
 
   return (
     <div className="relative flex h-full flex-1 flex-col overflow-hidden">
@@ -151,89 +166,22 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
         /* Full-screen browser viewport when running */
         <div className="relative flex-1">
           <ViewportPanel
-            screenshotUrl={events.find((e) => e.payload?.screenshotUrl)?.payload?.screenshotUrl}
+            screenshotUrl={[...events].reverse().find((e) => e.payload?.screenshotUrl)?.payload?.screenshotUrl}
+            liveViewUrl={events.find((e) => e.payload?.liveViewUrl)?.payload?.liveViewUrl}
+            frozen={isTerminal}
             fullScreen
           />
 
-          {/* Guardrail modal */}
-          {hasGuardrail && guardrail === "pending" && !isComplete && (
-            <GuardrailModal
-              open={true}
-              runId={runId}
-              payload={guardrailPayload}
-              onCancel={() => handleGuardrailConfirm("cancel")}
-              onAuthorize={() => handleGuardrailConfirm("authorize")}
-            />
-          )}
-
-          {/* Authorization confirmed overlay */}
-          {guardrail === "authorized" && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-obsidian/80 backdrop-blur-md">
-              <div className="glass-panel animate-rise flex flex-col items-center gap-4 rounded-[18px] border border-phosphor/15 px-8 py-7 text-center shadow-[0_0_40px_rgba(125,255,176,0.08)]">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-phosphor/10">
-                  <CircleCheck size={24} className="text-[var(--color-phosphor)]" />
-                </div>
-                <p className="font-display text-[17px] text-[var(--color-bone)]">
-                  {lastEvent?.message ?? "Booking confirmed"}
-                </p>
-                <p className="max-w-[240px] text-[12.5px] leading-relaxed text-[var(--color-bone-dim)]">
-                  Episodic memory will store this transaction for future {agent.name} runs.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Run complete overlay */}
-          {isComplete && guardrail !== "authorized" && !hasGuardrail && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-obsidian/80 backdrop-blur-md">
-              <div className="glass-panel animate-rise flex flex-col items-center gap-4 rounded-[18px] border border-phosphor/15 px-8 py-7 text-center shadow-[0_0_40px_rgba(125,255,176,0.08)]">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-phosphor/10">
-                  <CircleCheck size={24} className="text-[var(--color-phosphor)]" />
-                </div>
-                <p className="font-display text-[17px] text-[var(--color-bone)]">
-                  {lastEvent?.message ?? "Task complete"}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Failed overlay */}
-          {isFailed && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-obsidian/80 backdrop-blur-md">
-              <div className="glass-panel animate-rise flex flex-col items-center gap-4 rounded-[18px] border border-coral-signal/25 px-8 py-7 text-center shadow-[0_0_40px_rgba(255,92,77,0.08)]">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-coral-signal/10">
-                  <XCircle size={24} className="text-[var(--color-coral-signal)]" />
-                </div>
-                <p className="font-display text-[17px] text-[var(--color-bone)]">
-                  {lastEvent?.message ?? "Run failed"}
-                </p>
-                <button
-                  onClick={() => { setRunPhase("idle"); setRunId(null); setGuardrail("pending"); setChatHistory([]); }}
-                  className="btn-secondary-glass mt-1 rounded-[10px] border border-border/40 px-5 py-2 font-mono text-[11px] text-[var(--color-bone-dim)] transition-colors hover:border-brass/20 hover:text-[var(--color-bone)]"
-                >
-                  Try again
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* User-cancelled overlay */}
-          {guardrail === "dismissed" && !isComplete && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-obsidian/80 backdrop-blur-md">
-              <div className="glass-panel animate-rise flex flex-col items-center gap-4 rounded-[18px] border border-border/30 px-8 py-7 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/5">
-                  <XCircle size={24} className="text-[var(--color-bone-dim)]" />
-                </div>
-                <p className="font-display text-[17px] text-[var(--color-bone)]">
-                  Execution cancelled
-                </p>
-                <button
-                  onClick={() => { setRunPhase("idle"); setRunId(null); setGuardrail("pending"); setChatHistory([]); }}
-                  className="btn-secondary-glass mt-1 rounded-[10px] border border-border/40 px-5 py-2 font-mono text-[11px] text-[var(--color-bone-dim)] transition-colors hover:border-brass/20 hover:text-[var(--color-bone)]"
-                >
-                  Run again
-                </button>
-              </div>
+          {/* Non-blocking terminal control — keeps the live browser visible */}
+          {isTerminal && (
+            <div className="absolute left-1/2 top-4 z-20 -translate-x-1/2">
+              <button
+                onClick={() => { setRunPhase("idle"); setRunId(null); setGuardrail("pending"); setChatHistory([]); processedAgentCount.current = 0; }}
+                className="btn-secondary-glass flex items-center gap-2 rounded-full border border-border/40 bg-obsidian/70 px-4 py-2 font-mono text-[11px] text-[var(--color-bone-dim)] backdrop-blur-md transition-colors hover:border-brass/25 hover:text-[var(--color-bone)]"
+              >
+                {isFailed || guardrail === "dismissed" ? <XCircle size={13} /> : <CircleCheck size={13} className="text-[var(--color-phosphor)]" />}
+                New run
+              </button>
             </div>
           )}
         </div>
@@ -287,14 +235,20 @@ export function ActiveAgentView({ agent, onBack }: { agent: Agent; onBack: () =>
         </div>
       )}
 
-      {/* ── Floating Chat (bottom-left, only when running) ──────────── */}
+      {/* ── Floating Chat (bottom-right) — the single surface for messages,
+             the booking confirmation, and status ─────────────────────── */}
       {isRunning && (
         <FloatingAgentChat
           chatHistory={chatHistory}
-          isWaitingForReply={isWaitingForReply}
+          isWaitingForReply={isWaitingForReply && !hasGuardrail}
           onSendReply={handleReply}
           agentName={agent.name}
           agentAccent={agent.accent}
+          guardrail={hasGuardrail && guardrailCard ? { title: guardrailCard.title, cost: guardrailCard.cost } : null}
+          guardrailState={guardrail}
+          onAuthorize={() => handleGuardrailConfirm("authorize")}
+          onCancel={() => handleGuardrailConfirm("cancel")}
+          statusBanner={statusBanner}
         />
       )}
     </div>
