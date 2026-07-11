@@ -8,10 +8,14 @@
 [![React](https://img.shields.io/badge/React-18-61dafb?style=flat-square&logo=react)](https://react.dev/)
 [![Anthropic](https://img.shields.io/badge/Claude-4-cc9a4e?style=flat-square)](https://anthropic.com)
 [![Playwright](https://img.shields.io/badge/Playwright-Automation-2ead33?style=flat-square)](https://playwright.dev)
+[![DigitalOcean](https://img.shields.io/badge/DigitalOcean-AI_API-0080FF?style=flat-square&logo=digitalocean)](https://www.digitalocean.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 
 <br/>
 
 **A marketplace of specialist AI agents that book hotels, flights, grocery shop, and manage your life — with real browser automation, live telemetry, and human-in-the-loop guardrails.**
+
+*Powered by DigitalOcean AI for intent routing · PostgreSQL for persistent memory & run history*
 
 [Demo](#-demo-flow) · [Architecture](#-architecture) · [Tech Stack](#-tech-stack) · [Quick Start](#-quick-start)
 
@@ -363,7 +367,6 @@ Before any purchase, the system:
 
 <div align="center">
 
-**Built with ❤️ for the Butterbase Hackathon**
 
 *Agent Deck — Where every task has a specialist.*
 
