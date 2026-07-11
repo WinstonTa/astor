@@ -207,9 +207,13 @@ export async function startRun(runId: string): Promise<void> {
         // A question before a booking/order is real (clarify request, or "which
         // hotel?"/"which store?" after a search) → wait for the user. After the
         // outcome is confirmed, a question-shaped closing is courtesy → complete
-        // instead of hanging.
+        // instead of hanging. Also treat imperative approval/correction prompts
+        // (e.g. "Approve this list, or send a quick correction...") as requiring
+        // a pause — not every prompt for user input is phrased as a literal
+        // question or starts with a WH-word.
         const looksLikeQuestion = agentText.includes('?') ||
-          /^(what|when|where|which|how|do you|are you|can you|would you|should)/i.test(agentText);
+          /^(what|when|where|which|how|do you|are you|can you|would you|should)/i.test(agentText) ||
+          /\b(approve|approval|confirm|let me know|sound(s)? good|go ahead|shall i|should i|reply with|send a (quick )?correction)\b/i.test(agentText);
         const isQuestion = looksLikeQuestion && !committedOutcome;
 
         if (isQuestion) {
